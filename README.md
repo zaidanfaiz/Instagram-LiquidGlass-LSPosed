@@ -1,36 +1,42 @@
 # Instagram Liquid Glass — LSPosed
 
-Experimental module for Instagram Android (targeted: 452.0.0.48.64) on Android 16. This is **not affiliated with Instagram**.
+Experimental LSPosed module targeting **Android 16 / Instagram 452.0.0.48.64**. This project is not affiliated with Meta or Instagram.
 
-## v0.3 — Frosted floating navigation beta
+## v0.4 — scroll-responsive floating glass (beta)
 
-- Reuses Instagram's original clickable navigation controls.
-- Moves the tab bar into a rounded floating pill (14dp inset from side edges and bottom).
-- Samples a small part of the application window behind the bar every 900 ms, blurs the image with Android RenderEffect, then overlays a low-opacity gradient and bright edge stroke.
-- Tries sampling the strip above the bar when Instagram draws a blank bottom spacer.
-- Falls back to a simple inset if Instagram's private view hierarchy cannot be safely rearranged.
+Compared to v0.3:
+- The floating pill has **20 dp** left/right inset and a **52 dp** bottom offset, so it visibly overlaps the feed.
+- A `Choreographer` vsync callback responds to finger motion and a `ViewTreeObserver.OnScrollChangedListener` responds to flings/scroll movement.
+- Sampling updates at most **20 frames per second during interaction**, replacing the old fixed 900ms delay. At rest it refreshes about every 550ms to detect newly loaded feed images.
+- The screenshot sampler no longer hides/reveals the bottom bar (which could cause extra invalidations); it draws underlying content children directly, excluding the glass overlay.
+- Preserves Instagram's own tab navigation and touch handlers.
 
-**Limitations:** This is a screenshot-sampling approximation, **not actual iOS Liquid Glass**. The background blur may update with a delay. Hardware-rendered content that cannot be captured via a software Canvas may remain dark. Some screens may not support the relocation; Instagram 452 may behave differently on other devices. The module is experimental and has not been run on your phone.
+**Known limitations:** The glass is a blurred sample of the underlying Android hierarchy plus a translucent tint, not Apple's native real-time physical refraction shader. Certain hardware-accelerated video/SurfaceView content may render blank in offscreen captures. A dark space can still remain below the pill if Instagram reserves the original nav height in its content. Exact integration requires hierarchy logs from the device and more app-specific work. This experimental module may be slower or glitch on some phones. A successful CI build does NOT prove it works in Instagram.
 
-## Download/build APK on your phone
+## Research references
 
-1. Go to [GitHub Actions](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions).
-2. Open the newest successful **Build LSPosed APK** run.
-3. Under **Artifacts**, download **Instagram-LiquidGlass-LSPosed-debug**.
-4. Extract the ZIP, install `app-debug.apk`.
-5. Enable the module in LSPosed, and set **Instagram** as its only scope.
-6. Force-stop Instagram, reopen it, and test all five tabs.
+- [liquid-glass-react](https://github.com/rdev/liquid-glass-react) — React browser-based refractive shader and touch effects
+- [liquidGL](https://github.com/naughtyduk/liquidGL) — browser-based GPU glass with scroll syncing
+- [Prismal](https://github.com/styropyr0/Prismal) — native Android GL shader, backdrop sampling and vsync interaction; future direction for a true refractive effect
 
-GitHub Actions generates a new debug signing key on some runs. If Android reports `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, uninstall only the **module app**, reinstall the new debug APK, and enable it again. Do not uninstall Instagram for the signature mismatch.
+These projects are **design/architecture references**. Their shader code has not been copied into this source.
 
-## Recovery if Instagram UI glitches
+## Build without a computer
 
-Disable the module in LSPosed, force-stop Instagram, and reopen Instagram. If the UI still breaks, reboot the phone with the module disabled. Send an LSPosed log and a screenshot for compatibility debugging.
+1. Open [GitHub Actions](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions).
+2. Open the newest **successful** run of **Build LSPosed APK**.
+3. Download the `Instagram-LiquidGlass-LSPosed-debug` artifact and extract the `app-debug.apk`.
+4. Install the APK; enable the module in LSPosed with **Instagram only** as scope.
+5. Force-stop Instagram and reopen it to test scrolling and tapping all tabs.
 
-## Implementation notes
+If debug APK signature mismatch prevents updating, uninstall **only the module app**, not Instagram, install the new one, and re-enable the module in LSPosed.
 
-- Legacy Xposed API 82; `com.instagram.android` is the only hooked package.
-- Compile SDK 35, Java 17, Gradle 8.9 / AGP 8.7.3.
-- The CI test confirms source compiles into an APK, **not** that Instagram's UI layout is compatible.
+## Recover from issues
 
-Source: [InstagramGlassHook.java](app/src/main/java/dev/zaidan/igglass/InstagramGlassHook.java).
+If Instagram freezes, crashes, nav buttons stop responding, or the feed stops scrolling, disable the module in LSPosed, force-stop Instagram and reopen. Report your Android/Instagram version, screenshot and relevant LSPosed log for debugging.
+
+## Development
+
+The code uses legacy Xposed API 82, Java 17, Android SDK 35, Gradle 8.9, and AGP 8.7.3.
+
+[Main Java hook](app/src/main/java/dev/zaidan/igglass/InstagramGlassHook.java) · [GitHub Actions workflow](.github/workflows/build-apk.yml)
