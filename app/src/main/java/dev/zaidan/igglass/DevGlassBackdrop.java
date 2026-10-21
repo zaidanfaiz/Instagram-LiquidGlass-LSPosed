@@ -27,19 +27,24 @@ import android.widget.ImageView;
  * This is a limited Android backdrop approximation, not iOS compositor blur.
  */
 final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener {
-    private static final float SCALE = .23f;
+    private static final float SCALE = .30f;
     // The former 16% contribution was too subtle to look frosted. With an
     // exact captured backdrop, 42% interpolates blurred/unblurred content;
     // it does not add a white/black color fill or change with night mode.
-    private static final float FROST_ALPHA = .58f;
-    private static final long MIN_CAPTURE_MS = 1800L;
+    private static final float FROST_ALPHA = .84f;
+    private static final long MIN_CAPTURE_MS = 750L;
     private static final long TOO_SLOW_MS = 28L;
     private final Activity activity;
     private final DevGlassUi.Scene scene;
     private final FrameLayout host;
     private final ImageView main;
     private final ImageView search;
-    private final Runnable captureTask = this::capture;
+    private final Runnable captureTask = () -> {
+        capturePending = false;
+        capture();
+    };
+    private boolean capturePending;
+    private long captureDueAt;
     private boolean stopped;
     private boolean started;
     private boolean enabled;
@@ -64,10 +69,11 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         v.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         v.setScaleType(ImageView.ScaleType.FIT_XY);
         v.setAlpha(0f); // No blur until a VERIFIED valid frame arrives.
+        v.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         if(Build.VERSION.SDK_INT >= 31) {
             // The snapshot is downscaled to 23%. A modest 5dp blur on that
             // sampled layer is clearer than a huge 11dp blur over 305px.
-            float blur = 5f*activity.getResources().getDisplayMetrics().density;
+            float blur = 14f*activity.getResources().getDisplayMetrics().density;
             v.setRenderEffect(RenderEffect.createBlurEffect(
                     blur, blur, Shader.TileMode.CLAMP));
         }
@@ -81,7 +87,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         started=true;
         ViewTreeObserver obs=host.getViewTreeObserver();
         if(obs.isAlive()) obs.addOnScrollChangedListener(this);
-        DevFileLog.note("r14 optical-frost: static content strength=58%, radius=5dp; Reels capture OFF");
+        DevFileLog.note("r15 glass-frost: sample=30%, GPU radius=14dp, blend=84%; Reels capture OFF");
     }
 
     void setEnabled(boolean shouldEnable) {
@@ -91,10 +97,11 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         if(enabled == allow) return;
         enabled=allow;
         host.removeCallbacks(captureTask);
+        capturePending = false;
         if(!enabled) {
             clear(main);
             clear(search);
-        } else request(900);
+        } else request(300);
         DevFileLog.note("r12 safe-frost " + (enabled ? "enabled" : "suspended"));
     }
 
@@ -112,18 +119,26 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
 
     void request(int delayMs) {
         if(!enabled || stopped || tooSlow || scene.isReelsActive()) return;
+        long now = SystemClock.uptimeMillis();
+        long due = now + Math.max(140, delayMs);
+        // Do not continually POSTPONE the frame while Instagram scrolls.
+        // r14 restarted this 1.1s timer on every scroll event, resulting
+        // in no visible blur until the user stopped touching the feed.
+        if(capturePending && captureDueAt <= due) return;
         host.removeCallbacks(captureTask);
-        host.postDelayed(captureTask,Math.max(850,delayMs));
+        capturePending = true;
+        captureDueAt = due;
+        host.postDelayed(captureTask, Math.max(1, due - now));
     }
 
     @Override public void onScrollChanged() {
-        // Immediately discard the old frame while Instagram is scrolling,
-        // otherwise the bitmap lags behind the moving feed and looks like an
-        // opaque, ghosted overlay. Re-frost when scrolling has settled.
-        if(enabled) {
-            clear(main);
-            clear(search);
-            request(1100);
+        if(enabled && !scene.isReelsActive()) {
+            // Fade an out-of-date sample but avoid a fully invisible pill.
+            // The next real feed sample is queued without starvation.
+            if (main.getDrawable() != null) main.setAlpha(.18f);
+            if (search != null && search.getDrawable() != null)
+                search.setAlpha(.18f);
+            request(170);
         }
     }
 
@@ -203,8 +218,8 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                 Bitmap y=crop(combined,searchR,bounds);
                 if(y!=null)replace(search,y);
             }
-            DevFileLog.note("r13 optical-frost sample=" + combined.getWidth()
-                    +"x"+combined.getHeight()+" blend=58% radius=5dp took="+took+"ms");
+            DevFileLog.note("r15 glass-frost sample=" + combined.getWidth()
+                    +"x"+combined.getHeight()+" blend=84% radius=14dp took="+took+"ms");
         }catch(Throwable error) {
             tooSlow=true;
             clear(main);clear(search);
