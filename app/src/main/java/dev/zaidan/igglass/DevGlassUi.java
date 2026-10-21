@@ -18,12 +18,12 @@ import android.widget.FrameLayout;
 import java.util.Locale;
 
 /**
- * Lightweight glass: real original Instagram tab button Views,
- * translucent layered gradients, a moving specular lens and a separate Search
- * circle. No bitmap screenshots, Canvas capture or 12fps CPU blur loops.
+ * iOS-style glass composition: original clickable Instagram tab Views,
+ * refracted cached backdrop, optical specular rim, lens and separate Search
+ * circle. No continuous per-frame screen capture or heavy render loops.
  */
 final class DevGlassUi {
-    static final int BOTTOM_MARGIN_DP = 44;
+    static final int BOTTOM_MARGIN_DP = 52;
     private static final int SIDE_DP = 15;
     private static final int GAP_DP = 12;
     private static final int HIGHLIGHT_ANIM_MS = 230;
@@ -459,10 +459,10 @@ final class DevGlassUi {
 
         GradientDrawable body = new GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                dark ? new int[] {0x784D6179, 0x55333E52, 0x76233047}
-                     : new int[] {0x92FFFFFF, 0x65D3E6F5, 0x85EAF4FF});
+                dark ? new int[] {0xA1788796, 0x7D465567, 0x9B617384}
+                     : new int[] {0xB7AEB8C1, 0x8B899CAC, 0xAAB0BCC8});
         body.setCornerRadius(height / 2f);
-        body.setStroke(dp(shell, 1), dark ? 0xA4D5E6F9 : 0xBFFFFFFF);
+        body.setStroke(dp(shell, 1), dark ? 0x77D8F1FF : 0xBEFFFFFF);
         shell.setBackground(body);
         shell.setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View view, Outline outline) {
@@ -475,23 +475,25 @@ final class DevGlassUi {
         View shine = new View(activity);
         GradientDrawable gloss = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x26FFFFFF, 0x09FFFFFF, 0x00FFFFFF});
+                new int[] {0x25FFFFFF, 0x08FFFFFF, 0x00FFFFFF});
         gloss.setCornerRadius(height / 2f);
         shine.setBackground(gloss);
         shine.setClickable(false);
         shell.addView(shine, new FrameLayout.LayoutParams(-1, -1));
         DevLiquidFx ripple = new DevLiquidFx(activity);
         shell.addView(ripple, new FrameLayout.LayoutParams(-1, -1));
+        DevGlassRim specular = new DevGlassRim(activity, dark);
+        shell.addView(specular, new FrameLayout.LayoutParams(-1, -1));
     }
 
     private static View createLens(Activity activity, boolean dark) {
         View lens = new View(activity);
         GradientDrawable halo = new GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                dark ? new int[] {0x969CC2E3, 0x6C5F89AD, 0x866E9CBD}
-                     : new int[] {0xC8FFFFFF, 0x79B2DAFC, 0xAAFFFFFF});
+                dark ? new int[] {0xB2AABDD0, 0x805E7A94, 0xA38DA5BB}
+                     : new int[] {0xC9C5CDD5, 0x906B8095, 0xB1BBC8D5});
         halo.setCornerRadius(dp(lens, 40));
-        halo.setStroke(dp(lens, 1), dark ? 0xCFF8FDFF : 0xF0FFFFFF);
+        halo.setStroke(dp(lens, 1), dark ? 0xE6EAF7FF : 0xE5FFFFFF);
         lens.setBackground(halo);
         lens.setClickable(false);
         return lens;
