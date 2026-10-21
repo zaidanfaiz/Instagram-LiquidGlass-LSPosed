@@ -2,6 +2,67 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current experimental build: **0.1-dev-r6 SDF optics (MIT adapted)**
+
+Target: Instagram **452.0.0.48.64**, Android **16**, LSPosed.
+
+The user supplied three open-source shader libraries after r5 still rendered
+black/white flat pills:
+- [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass):
+  high-quality Compose Multiplatform, not immediately compatible with a plain
+  Android View injection.
+- [QWEA0/Liquid-Glass-Android](https://github.com/QWEA0/Liquid-Glass-Android):
+  native Android View implementation with SDF optics and a native/Kotlin
+  rendering stack. A promising alternative if this small port is inadequate.
+- [QmDeve/AndroidLiquidGlassView](https://github.com/QmDeve/AndroidLiquidGlassView):
+  compact Java/Android View AGSL implementation with rounded-rectangle signed
+  distance fields, true edge pixel displacement, and chromatic dispersion.
+
+### Actual integration in r6
+
+The module now **adapts the QmDeve MIT shader source** instead of approximating
+physical refraction with simple diagonal UV offsets. The new
+`DevRefractiveBackdrop.java` embeds the SDF and multi-channel dispersion
+algorithms from `core/src/main/res/raw/liquidglass_effect.agsl`.
+The upstream copyright and license are preserved in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). The Android 16
+`RuntimeShader` uses a low-resolution background `BitmapShader` as its input.
+
+The appearance is **ONE fixed NEUTRAL CLEAR material**, never tied to the
+Instagram or Android day/night settings:
+- Low-opacity clear silver capsule with a reflective white rim.
+- Lighter but translucent selection lens that follows horizontal drags.
+- SDF-based physical distortion concentrated near rounded edges, with
+  chromatic dispersion only when a reliable captured background exists.
+- Separated Search button retaining the original Instagram click target.
+- Stable original native navigation and Android content margin fixes.
+- Original MediaStore auto-diagnostics in Downloads.
+
+### Why the screenshot may still differ from iOS
+
+Unlike full iOS compositor access, this LSPosed module can only refract
+content it successfully samples. `SurfaceView` video may be **invisible to
+`View.draw(Canvas)`**. Backgrounds with very low detail, or blank white/black
+captures, now disable the SDF sample rather than covering the bar with an
+incorrect solid color. The reflective rim and fixed clear material remain.
+The snapshot cache is updated when scrolling/interaction settles, not on
+every video frame. Therefore the optics are more physically based **but not
+a guarantee of 1:1 iOS Liquid Glass over real-time Reels video**.
+
+### Test sequence
+
+1. Download **0.1-dev-r6-real-sdf-optics** successful `Build LSPosed APK`
+   artifact, install `app-debug.apk`, scope Instagram only, force-stop it.
+2. Check white/bright photos on Home AND Reels video backgrounds. The
+   capsule and separate Search should not turn into black/white blocks.
+3. Drag across the four main native tabs and try Search. Report if a native
+   tab stops responding (disable LSPosed module if unusable).
+4. Check Story/status, profile and Direct inbox. Their auto-hide remains
+   experimental on Instagram's proprietary navigation implementation.
+5. Upload the latest `Download/IGGlass-0.1-dev-*.txt` and screenshots.
+   Critical new lines: `SDF optical pipeline loaded`, `SDF refraction+
+   dispersion uniform setup`, `SDF optics luma...`, or `SDF shader failed`.
+
 ## Current test build: **0.1-dev-r5 glass material fix**
 
 Device feedback from the r4 screenshots and Downloads log: the home and
