@@ -2,6 +2,45 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## v0.8 — targeted 180px navbar-space fix (beta)
+
+The runtime logs from Instagram 452.0.0.48.64 show that the original
+`tab_bar` is 180px high, with an opaque `#FF0C1014` background. After v0.7
+moves it into the floating glass shell, two **real content views** retain
+`bottomMargin=180`:
+
+- `layout_container_main` — live feed container.
+- `swipeable_tab_view_pager` — the swipeable feed tabs.
+
+The adjacent 1px `tab_bar_shadow` also remains visible. This makes the
+previous strategy of collapsing small, empty wrappers ineffective.
+
+v0.8 checks the verified `layout_container_main_wrapper` and both child IDs
+with their exact reserved margins, then changes the **two content bottom
+margins from 180px to 0**, optionally releases the matching hidden bottom
+searchbar stub margin, and hides the old 1px shadow. It never hides the
+feed or ViewPager, touches unrelated layouts, or changes the system navbar.
+If the runtime layout differs, it falls back to v0.6's conservative behavior.
+
+### Test on Instagram 452 / Android 16
+
+1. Download the **latest successful Build LSPosed APK** on main, install
+   `app-debug.apk`, and enable it with Instagram-only scope.
+2. Force-stop and reopen Instagram. Inspect the area around the floating pill
+   on the home feed and swipe up/down.
+3. Verify all five tabs and their click/long-press behavior, Reels playback,
+   profile and explore. Watch for content being covered unexpectedly.
+4. In LSPosed module logs, confirm `IGGlass: released 180px reserved bottom
+   space for feed and pager` and the `after-floating` report showing
+   `bottomMargin=0` and the shadow gone.
+5. Send a screenshot of the result and log lines beginning `IGGlass:` if a
+   dark band remains or the page overlaps incorrectly.
+
+This is a **testable hypothesis from a real device log, not a visually
+verified fix**. The last ~60px of screen space in the diagnostic log may still
+be managed separately by Instagram/Android; v0.8 does not override that.
+Disable the module and force-stop Instagram if behavior is broken.
+
 ## v0.7 — runtime hierarchy diagnostics (no visual changes)
 
 The uploaded Instagram 452 APK was decoded successfully. Static XML/DEX
