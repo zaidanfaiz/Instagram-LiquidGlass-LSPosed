@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a focused enhancement for the LSPosed glass navbar
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggestions are welcome. This module changes **Instagram's navigation UI only** and targets Instagram 452 / Android 16. Avoid requests for account automation, tracking or bypassing Instagram's security controls.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+      placeholder: Describe the existing behavior and the specific limitation.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed behavior
+      placeholder: Describe how the navbar or material should behave.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility or performance considerations
+      placeholder: Include Instagram/Android versions, video playback risks, screenshots without personal details.
