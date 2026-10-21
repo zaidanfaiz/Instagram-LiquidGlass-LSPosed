@@ -28,7 +28,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
- * v0.8 targeted Instagram 452 navbar-space fix (beta) for its 5-tab navigation.
+ * v0.9 split Liquid Glass + Story/Profile auto-hide (beta) for Instagram 452.
  *
  * It relocates the ORIGINAL navigation buttons and draws a sampled, blurred
  * approximation of content behind them. This is not the native iOS shader.
@@ -38,7 +38,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
     private static final String PACKAGE = "com.instagram.android";
     private static final WeakHashMap<View, Boolean> STYLED = new WeakHashMap<>();
     private static final int HORIZONTAL_MARGIN_DP = 16;
-    private static final int BOTTOM_MARGIN_DP = 12;
+    private static final int BOTTOM_MARGIN_DP = GlassV9Enhancements.BOTTOM_MARGIN_DP;
     private static final long MAX_FRAME_INTERVAL_NS = 83_000_000L; // up to ~12 fps while scrolling
     private static final long ACTIVE_TAIL_NS = 700_000_000L;
     private static final long IDLE_REFRESH_MS = 550L;
@@ -46,7 +46,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
         if (!PACKAGE.equals(load.packageName)) return;
-        XposedBridge.log("IGGlass v0.8-margin-fix: " + load.processName);
+        XposedBridge.log("IGGlass v0.9-split-nav: " + load.processName);
         XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent", MotionEvent.class,
                 new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
@@ -156,6 +156,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         floatParams.rightMargin = dp(nav, HORIZONTAL_MARGIN_DP);
         floatParams.bottomMargin = dp(nav, BOTTOM_MARGIN_DP);
 
+        GlassV9Enhancements.Setup glass = null;
         try {
             parent.removeView(nav);
             host.addView(shell, floatParams);
@@ -164,6 +165,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // opaque layers that otherwise obscure the frosted backdrop.
             clearOpaqueFullSizeWrappers(nav, nav.getWidth(), height, 0);
             shell.addView(outline, new FrameLayout.LayoutParams(-1, -1));
+            glass = GlassV9Enhancements.attach(activity, host, shell, nav,
+                    height, dark);
 
             // Remove the former bottom bar's *layout slot*, including small
             // non-clickable decorative wrappers. Let the feed resize normally.
@@ -175,15 +178,22 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             STYLED.put(nav, true);
             GlassUpdater old = SCENES.remove(activity);
             if (old != null) old.stop();
-            GlassUpdater updater = new GlassUpdater(activity, host, shell, sampledBackdrop);
+            GlassUpdater updater = new GlassUpdater(activity, host, shell,
+                    sampledBackdrop, glass);
             SCENES.put(activity, updater);
             updater.start();
             host.postDelayed(() -> NavDiagnostics.dump(activity, nav, parent,
                     "after-floating"), 450);
-            XposedBridge.log("IGGlass v0.8-margin-fix: single floating nav installed");
+            XposedBridge.log("IGGlass v0.9-split-nav: floating UI installed");
         } catch (Throwable e) {
             XposedBridge.log("IGGlass: overlay failed, restoring: " + e);
             try {
+                if (glass != null) {
+                    glass.restoreSearch();
+                    if (glass.searchShell != null && glass.searchShell.getParent() == host) {
+                        host.removeView(glass.searchShell);
+                    }
+                }
                 if (nav.getParent() instanceof ViewGroup) {
                     ((ViewGroup) nav.getParent()).removeView(nav);
                 }
