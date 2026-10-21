@@ -47,6 +47,7 @@ final class DevEdgeSpaceFix {
                 lp.bottomMargin = 0;
                 coordinator.setLayoutParams(lp);
                 applied = true;
+                DevNativeMarginGuard.watch(coordinator,originalMargin);
                 DevFileLog.note("edge-space: reclaimed verified " + originalMargin
                         + "px root coordinator bottom margin");
             } else if (!visibleOnFeed && applied) {
@@ -65,7 +66,12 @@ final class DevEdgeSpaceFix {
             }
         }
 
+        void unregister() {
+            DevNativeMarginGuard.unwatch(coordinator);
+        }
+
         void restore() {
+            DevNativeMarginGuard.unwatch(coordinator);
             setActive(false);
         }
     }
