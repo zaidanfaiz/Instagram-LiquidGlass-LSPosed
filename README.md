@@ -2,6 +2,61 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current experimental build: **0.1-dev-r7 — clear glass on Reels + smart pages**
+
+Target: Instagram 452.0.0.48.64, Android 16, LSPosed.
+
+**Design contract from the user's device test:** do NOT adapt the glass body's
+color to Android or Instagram night/light themes, and do NOT let the frosted
+sample turn the entire pill white during scroll. The main and Search shells
+have **zero-opacity base fill**. Only a narrow optical highlight/rim, movable
+active lens, touch ripple and a deliberately faint SDF refraction band are
+allowed. Even with a very bright post, SDF interior contribution is capped
+to roughly 5% and edge contribution to 29% of the sampled material. If the
+background sample is untrustworthy, zero image contribution is the fallback.
+
+**Reels video:** tries a small asynchronous Android `PixelCopy` from the
+actual `SurfaceView` (not a screenshot of our overlay); captures the union
+strip behind both pills at 22% scale, at most around 0.8 snapshots/second.
+Reels pixels can then enter the MIT-licensed SDF refraction shader without
+painting over the video or blocking 60fps playback. If no matching
+`SurfaceView` is found, or PixelCopy fails, the body stays clear and the
+specular rim plus animated active lens stay visible. Software fallback
+snapshots of Reels are **disabled**, preventing stale white/black frames.
+
+### Where the custom navbar appears
+
+| Screen | Floating glass navbar |
+|---|---|
+| Home feed | **Visible**, drag-to-select |
+| Reels (including playing video) | **Visible**, drag-to-select |
+| Search / Explore | **Visible** |
+| Your **own** Instagram profile | **Visible**, drag-to-select |
+| Direct Message **inbox / conversation-selection list** | **Visible**, drag-to-select |
+| An **opened DM chat/conversation** | **Hidden** |
+| **Other people's profiles** | **Hidden** |
+| **Stories / statuses** | **Hidden** |
+
+The visibility detector uses several **public UI labels and view resource
+IDs together**; it never reads the contents of EditText messages, and no
+usernames/messages are written to log files. Instagram 452 does not expose
+the standard AndroidX fragment manager here, so screen detection is
+best-effort. If a detail screen is misclassified, share a screenshot and
+the automatically generated Downloads log; the log now contains transitions
+such as `page routing HOME_OR_REELS -> DIRECT_INBOX` and
+`screen=hidden:dm-conversation-open`.
+
+**Installation:** download the APK from the *latest successful*
+`Build LSPosed APK` GitHub Actions run, install/update `app-debug.apk`,
+enable Instagram in LSPosed, force-stop Instagram, then reopen.
+If any touch behavior is broken, disable only the LSPosed module and restart
+Instagram; do not clear or uninstall the Instagram app.
+
+**Limits:** true iOS-style real-time compositor blur is not exposed to
+LSPosed. PixelCopy may fail on protected video surfaces, and the rendering
+is a translucent Android approximation. Successful Gradle compilation does
+not confirm the physical device's visual appearance.
+
 ## Current experimental build: **0.1-dev-r6 SDF optics (MIT adapted)**
 
 Target: Instagram **452.0.0.48.64**, Android **16**, LSPosed.
