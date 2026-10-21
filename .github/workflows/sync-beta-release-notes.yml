@@ -1,0 +1,38 @@
+name: Sync beta release notes
+
+# Documentation-only workflow. Updates text of the existing GitHub
+# prerelease; does not rebuild APK, move tag, alter signing or change
+# repository visibility.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'RELEASE_NOTES.md'
+      - '.github/workflows/sync-beta-release-notes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Keep prerelease description aligned with public docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update existing prerelease body only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          export GH_REPO="$GITHUB_REPOSITORY"
+          tag=v0.1.0-beta.1
+          is_pre="$(gh release view "$tag" --json isPrerelease --jq .isPrerelease)"
+          if [[ "$is_pre" != "true" ]]; then
+            echo "::error::Expected existing prerelease; refusing to alter another release."
+            exit 1
+          fi
+          gh release edit "$tag" --notes-file RELEASE_NOTES.md
+          gh release view "$tag" --json tagName,isDraft,isPrerelease,url,assets \
+            --jq '{tagName,isDraft,isPrerelease,url,assetNames:[.assets[].name]}'
+          echo "Updated release DESCRIPTION only. No APK, tag or visibility modifications."
