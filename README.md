@@ -2,6 +2,74 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Latest experimental build: **0.1-dev-r12 — Reels comments video safety + subtle frosted glass**
+
+The reported r11 Android 16 / Instagram 452 bug: a Reel video plays correctly,
+but opening its comments can leave the custom navbar visible and, after the
+comments close, the video image may freeze while audio keeps playing. There is
+no hard evidence the decoder crashed. Device log shows repeated application
+and restoration of a **verified 60px root coordinator margin** as the main
+Activity loses focus and the nav bar becomes hidden. On some SurfaceView
+stacks, changing the parent geometry during a dialog/sheet transition is
+a plausible source of stale video presentation. **This build is a mitigation
+to be tested on device, not a confirmed fix yet.**
+
+### Changes
+
+- Instagram's verified 60px app-owned root gap and 180px native tab reservation
+  are fixed ONCE during installation. The controller does NOT repeatedly call
+  `setLayoutParams` every 500ms when the focus or comment sheet changes,
+  does NOT restore the root margin in `onPause`, and restores root state
+  only on final safe teardown. Preserves native SurfaceView geometry.
+- Floating glass pills hide with `View.INVISIBLE` rather than `View.GONE`.
+  Their size and location remain fixed during comments and dialog transitions.
+- Added separate `REELS_COMMENTS` page classification. Requires independent
+  comments-specific signals: a large comments bottom sheet plus header/input
+  or a comments heading plus an active comment composer/list. A tiny comments
+  button/caption is NOT enough. Comments are not logged or recorded.
+  The floating nav stays **hidden while comments are open**, and returns
+  after the sheet closes.
+- **Subtle GPU-frosted blur for static Home content only.** A tiny
+  `23%`-resolution offscreen sample is drawn at most once every 1.8 seconds,
+  after feed scrolling settles; ImageView's RenderEffect adds 6dp GPU blur.
+  The sampled layer has a **hard alpha of only 16%**, never fully white/
+  black. Uniform, blank or transparent captures are rejected, and captures
+  taking longer than 28ms permanently disable frosting for the session.
+- **Reels stays the safe r10/r11 fully transparent rim-and-lens material.**
+  Video SurfaceViews and TextureViews are *never captured or drawn*, and the
+  frosted layer is cleared when Reels or a comment sheet is active.
+  There is NO active video PixelCopy or AGSL compositor sampling in r12.
+- Maintains r11's ~22dp icons, separate Search button, swipe-to-select,
+  own profile and DM inbox visible, other people's profile / opened DM chat
+  / Story hidden.
+
+### On-device regression checklist
+
+1. Install the latest successful r12 debug APK from GitHub Actions.
+2. Play a Reel -> open the comment sheet -> verify BOTH pills disappear ->
+   close comments -> verify the video *picture and audio* are still moving
+   together. Repeat 3 times, swipe to the next Reel, and also test while audio
+   is playing. If the issue persists, compare with the module disabled;
+   this distinguishes Instagram playback from an LSPosed regression.
+3. Swipe Home -> Reels -> own Profile -> DM inbox -> Home. Native buttons,
+   sliding lens, original icons and Search should still work.
+4. Check Home on a *static photo*: the frost should be very subtle, no white
+   rectangle. Reels remains clear with a narrow glass highlight.
+5. Attach the automatically saved `Download/IGGlass-0.1-dev-*.txt`.
+   Look for `r12 playback safety`, `page routing ... REELS_COMMENTS`,
+   `screen=hidden:reels-comments-overlay`, and `r12 safe-frost`.
+   A missing comments detection line means Instagram's comments hierarchy
+   differs; provide a screenshot with the sheet visibly open for a targeted
+   view-tree probe.
+
+### Technical limitation
+
+The r12 blur is not the actual iOS system-compositor backdrop filter. Proper
+real-time refractive blur of Instagram Reels (especially SurfaceView video)
+needs verified frame access / a suitable GPU pipeline. Re-enabling live
+SurfaceView capture before the frozen-frame bug is solved is intentionally
+avoided. The r12 priority is correct and safe Reels playback and UI hiding.
+
 ## Latest test build: **0.1-dev-r11 — compact native icons**
 
 The user's r10 device screenshot confirms that **both capsules now remain
