@@ -31,8 +31,8 @@ final class DevLiquidFx extends View {
           + "  float lower = exp(-pow((uv.y - 0.90)*18.0, 2.0));\n"
           + "  float rim = exp(-pow((uv.x - 0.03)*24.0, 2.0))"
           + " + exp(-pow((uv.x - 0.97)*24.0, 2.0));\n"
-          + "  float a = clamp(0.035 + upper*0.115 + lower*0.060 + rim*0.028"
-          + " + wave*0.24, 0.0, 0.38);\n"
+          + "  float a = clamp((upper*0.075 + lower*0.028"
+          + " + rim*0.035) * motion + wave*0.19, 0.0, 0.22);\n"
           + "  return half4(half3(0.87, 0.95, 1.0), half(a));\n"
           + "}\n";
 
