@@ -2,6 +2,79 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Experimental **r18 — dynamic Reels video blur without video relayout**
+
+This build extends r17's five-destination glass navigation with a second,
+independent frosted-backdrop pipeline. Previous r12-r17 releases rendered
+`DevGlassBackdrop` only on static pages; **Reels had zero sampling** to
+prevent the documented frozen-picture / live-audio bug. r18 keeps those
+playback fixes and tests a materially different video-safe API.
+
+### The video glass renderer
+
+- At most **one asynchronous PixelCopy request in flight**, spaced at least
+  **470ms** apart (~2 captures/second). There is **no onDraw recorder,
+  background-screen capture loop or fullscreen bitmap**.
+- The preferred source is the live **SurfaceView's own pixel buffer**:
+  `PixelCopy.request(SurfaceView, Rect, Bitmap, listener, workerHandler)`
+  (supported on API 26+). Only the two floating glass capsules' union
+  is requested, at 30% native resolution. No video player state, touch,
+  decoder, Activity window attributes, layout bounds or system UI is changed.
+- Some video SurfaceViews stop above the bottom gesture region. A candidate
+  still qualifies if its visible pixels cover at least **55%** of the glass
+  sample region and 88% of its width. The returned patch is softly extended
+  to the full glass when the video stops short of the bottom edge.
+- If Instagram uses **TextureView** instead, an asynchronous tiny
+  `PixelCopy.request(Window, Rect, ...)` fallback samples the video already
+  composited into the app window; it can include some overlay chrome, so
+  the direct SurfaceView route remains preferred.
+- Captured pixels are blended at **76%** into a separate ImageView under
+  the original transparent optical rim; Android 12+ `RenderEffect`
+  applies approximately 9dp GPU blur. It never fills the capsule white
+  or black and does not adapt tint to theme.
+- Frames that are black, white, unavailable, too flat, DRM-protected or
+  repeatedly failing are rejected. After seven consecutive failures,
+  that Reels session disables the video capture and returns to the
+  **already-working completely clear r10 glass**. Exit and re-enter Reels
+  to retry. The renderer also stops during comments, opened chats,
+  stories, other-user profiles and Activity pause.
+- Memory use is bounded by small image crops and delayed image retirement.
+  PixelCopy callbacks carry a generation token, so a late result cannot
+  draw over a different Instagram page. Work is async with a background
+  handler thread.
+
+### Preserved from r17
+
+- Custom swipe order **Home → Reels → DM → Own Profile → Search**, Search
+  detached on the right.
+- All original click listeners, input shields and real Instagram destinations.
+- Fixed native bottom-bar spacing and guarded viewport reconciliation.
+- Opening and closing Reels comments must not freeze the video picture.
+- The static Home/DM/Profile/Search glass pipeline continues to work.
+
+### Validation: r18 needs real device playback testing
+
+1. Install successful `0.1-dev-r18-reels-video-glass` debug build and
+   force-stop Instagram. Open a visibly colorful moving Reel. Within
+   1–2 seconds the glass should soften the moving video under both capsules.
+2. Check that the Reels picture **and audio** still play; open/close comments
+   at least three times. Both glass capsules must disappear while comments
+   are open, then return without stalling the player.
+3. Try Home → Reels → DM → Own Profile → Search via the r17 gestures and
+   back again. Static-page blur should remain as before.
+4. Watch the Downloads log for `r18 Reels blur SUCCESS`, or failure messages
+   starting `r18 video-glass`, `r18 PixelCopy`,
+   `r18 TextureView fallback`. The log has no video pixels or user data.
+5. **Rollback**: disable this LSPosed module and force-stop Instagram if
+   playback, temperature or responsiveness degrade. Reinstalling r17 is
+   another safe fallback.
+
+**Honest limitation:** this is an experimental 2fps frosted approximation,
+not Apple's live iOS system-compositor refraction. Results depend on the
+Instagram 452 video View implementation and any protected video surfaces.
+GitHub Actions build success confirms Android compilation, not smooth
+playback on your device.
+
 ## Latest experimental build: **0.1-dev-r17 — custom 5-page swipe order**
 
 Requested gesture order is now:
