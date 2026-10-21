@@ -5,7 +5,7 @@ Modul **LSPosed tidak resmi** yang mengubah navbar bawah Instagram menjadi kapsu
 [README English](README.md) · [Download rilis](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases) · [Changelog](CHANGELOG.md) · [Laporkan bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)
 
 > [!IMPORTANT]
-> **Versi beta.** Target utama: **Instagram 452.0.0.48.64 di Android 16**. Belum diverifikasi pada versi Instagram/Android lain. Proyek ini tidak berafiliasi dengan Instagram, Meta, Apple, atau pengembang LSPosed.
+> **Versi beta.** Modul ini **tidak sengaja dibatasi hanya untuk satu versi Instagram atau Android**. Ada kemungkinan berjalan di versi lain, tetapi belum diuji secara menyeluruh. Pengujian pengembang tercatat menggunakan **Android 16 (API 36) dan Instagram 452.0.0.48.64**. Proyek independen, bukan produk resmi Instagram, Meta, Apple, atau LSPosed.
 
 ## Fitur
 
@@ -16,25 +16,53 @@ Modul **LSPosed tidak resmi** yang mengubah navbar bawah Instagram menjadi kapsu
 - Navbar otomatis disembunyikan pada konteks tertentu, termasuk komentar Reels, chat DM terbuka, Story dan profil pengguna lain.
 - Tidak perlu memasang Instagram modifikasi. Modul bekerja pada Instagram yang sudah terpasang melalui LSPosed.
 
-## Persyaratan
+## Kompatibilitas dan data perangkat pengujian
 
-| Komponen | Status |
+Modul bekerja dengan mengenali elemen navigasi pada aplikasi `com.instagram.android`, **tanpa daftar putih yang mengunci nomor versi Instagram**. Artinya, modul **mungkin berjalan di Android dan versi Instagram lain** selama struktur navigasinya kompatibel. Itu bukan jaminan semua versi akan bekerja sempurna.
+
+| Komponen | Keterangan |
 | --- | --- |
-| Instagram 452.0.0.48.64 | Target utama |
-| Android 16 | Lingkungan yang diuji selama pengembangan |
-| LSPosed | Wajib |
+| Minimum pemasangan APK | **Android 10 (API 29)** sesuai deklarasi `minSdk`; bukan jaminan semua fitur berfungsi pada versi tersebut |
+| Instagram | Paket aplikasi `com.instagram.android`, versi dapat berbeda |
+| LSPosed | Wajib, dengan scope khusus Instagram |
 | Root atau lingkungan yang mendukung LSPosed | Wajib |
-| Android lain atau Instagram versi baru | Belum diverifikasi |
+| Android/Instagram lainnya | **Berpotensi kompatibel, belum diverifikasi** |
+| iOS | Tidak didukung |
 
-## Cara memasang
+### Data perangkat yang digunakan untuk pengujian
 
-1. Unduh **APK modul** dari halaman [Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases), beserta `SHA256SUMS.txt` jika ingin memeriksa checksum.
-2. Instal APK modul pada perangkat yang sudah menjalankan LSPosed.
-3. Buka **LSPosed → Modules → Instagram Liquid Glass**, aktifkan modul, dan pilih scope **Instagram (`com.instagram.android`)** saja.
-4. **Paksa berhenti (force-stop) Instagram**, lalu buka kembali.
-5. Uji Home, Reels, DM, Profil, Search, scrolling, dan buka/tutup komentar Reels.
+Informasi ini berasal dari log diagnostik perangkat saat pengembangan, **bukan batasan instalasi**.
 
-**Perhatian:** beta pertama ditandatangani dengan debug key dari GitHub Actions. Jika pemasangan versi baru gagal karena tanda tangan berbeda, nonaktifkan dan **hapus aplikasi modulnya saja** sebelum instal ulang. Jangan menghapus Instagram atau datanya hanya karena masalah tanda tangan modul.
+| Informasi | Data terverifikasi |
+| --- | --- |
+| Sistem operasi | **Android 16 / API 36** |
+| Versi Instagram | **452.0.0.48.64** |
+| Resolusi window/layar yang tercatat | **1440 × 3200 piksel** |
+| Paket Instagram | `com.instagram.android` |
+| Paket modul | `dev.zaidan.igglass` |
+| Merek dan model HP | **Belum terekam di log** |
+| Nama ROM / build | **Belum terekam di log** |
+
+Pengujian tersebut tidak menutup kemungkinan modul berjalan di Android 10–15, Android yang lebih baru, atau versi Instagram lainnya. Kompatibilitas harus diuji pada masing-masing perangkat. Laporan dari perangkat lain sangat membantu.
+
+## Instalasi dan update manual
+
+1. Unduh **APK modul** dari halaman [GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases). Boleh periksa SHA-256 dengan `SHA256SUMS.txt`. Ini **bukan APK Instagram modifikasi**.
+2. Instal APK pada perangkat Android dengan LSPosed.
+3. Buka **LSPosed → Modules → Instagram Liquid Glass**, aktifkan dan pilih scope **Instagram (`com.instagram.android`)** saja.
+4. **Force-stop Instagram**, kemudian buka kembali.
+5. Coba Home, Reels, DM, Profil, Search, blur, dan komentar Reels.
+
+### Cara update ketika ada rilis baru
+
+**Update dilakukan manual melalui GitHub**, tanpa pembaruan otomatis di dalam modul.
+
+1. Buka [GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases).
+2. Unduh APK versi terbaru, lalu buka APK tersebut.
+3. Jika pemasang Android menampilkan **Update / Perbarui**, pilih itu.
+4. Force-stop dan buka kembali Instagram setelah update.
+
+**Catatan tanda tangan APK:** Android hanya mengizinkan update di tempat jika nama paket, versi, dan sertifikat penandatanganan cocok. Beta `v0.1.0-beta.1` memakai debug key sementara dari GitHub Actions. Kalau build berikutnya menggunakan kunci berbeda, tombol **Update** akan gagal; nonaktifkan dan **uninstal aplikasi modulnya saja**, pasang APK baru, lalu aktifkan kembali di LSPosed. **Jangan hapus Instagram atau datanya.** Agar ke depannya update langsung bekerja konsisten, diperlukan kunci signing tetap milik pengelola.
 
 ## Batasan penting
 
@@ -66,8 +94,12 @@ gradle --no-daemon :app:assembleDebug
 
 APK hasil build berada di `app/build/outputs/apk/debug/app-debug.apk`. Lihat [workflow build](.github/workflows/build-apk.yml) untuk proses lengkap.
 
-## Kredit dan lisensi
+## Kontribusi, pengelolaan kode, dan lisensi
 
-Proyek komunitas independen, bukan produk resmi Instagram. Penggunaan nama merek dan istilah iOS hanya untuk menjelaskan kompatibilitas/inspirasi desain. Atribusi komponen shader pihak ketiga tersedia di [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Orang lain boleh **mengajukan perubahan** melalui GitHub Pull Request. Namun, **hanya pengelola yang berwenang menyetujui dan melakukan merge ke branch `main`**. Mengajukan PR tidak otomatis memberikan hak untuk menerbitkan APK resmi.
 
-**Kode asli proyek ini belum memiliki lisensi distribusi ulang yang dipilih.** Lisensi proyek menyeluruh akan ditetapkan dengan persetujuan pemilik repo. Lihat [README utama berbahasa Inggris](README.md) untuk informasi selengkapnya.
+Aturan [LICENSE](LICENSE) menggunakan ketentuan **source-available untuk kontribusi**, bukan lisensi open-source MIT untuk seluruh proyek. Penggunaan ulang secara bebas, distribusi ulang APK modifikasi, pemiroran, dan penerbitan ulang kode asli membutuhkan izin tertulis pemilik hak cipta. Komponen shader pihak ketiga tetap memiliki lisensi MIT sendiri seperti dijelaskan di [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+**Catatan GitHub:** jika repo dibuat public, orang secara teknis tetap dapat mengunduh, meng-clone, dan melakukan fork; hal itu tidak dapat dinonaktifkan hanya dengan menulis larangan dalam lisensi. Hak yang diberikan GitHub melalui ketentuan platform tetap berlaku. Proteksi branch serta review pemilik dapat mengendalikan **merge ke `main`**, bukan mencegah seluruh penyalinan kode.
+
+Proyek independen; tidak berafiliasi dengan Instagram, Meta, Apple, atau LSPosed. Lihat [README utama (English)](README.md), [CONTRIBUTING](CONTRIBUTING.md), dan [SECURITY](SECURITY.md).
