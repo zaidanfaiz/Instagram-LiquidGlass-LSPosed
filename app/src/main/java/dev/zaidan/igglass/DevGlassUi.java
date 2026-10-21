@@ -460,7 +460,7 @@ final class DevGlassUi {
                 @Override public void onSlideCancel() { scene.slideCancel(); }
             });
             main.post(() -> scene.positionLens(false));
-            DevFileLog.note("concept-a: translucent smoked surface + beveled active lens");
+            DevFileLog.note("r10 VISUAL ISOLATION: pure transparent shell, only active lens tint");
             main.post(() -> {
                 DevFileLog.note("pill geometry mainX=" + main.getLeft()
                         + " mainW=" + main.getWidth()
@@ -529,15 +529,13 @@ final class DevGlassUi {
             }
         });
         shell.setClipToOutline(true);
-        DevGlassSurface smoked = new DevGlassSurface(activity, false);
-        shell.addView(smoked, new FrameLayout.LayoutParams(-1, -1));
-
-        // Deliberately NO translucent full-pill ImageView or gradient:
-        // images/solid source graphics led to milky-white scroll regressions.
-        // Narrow rims (DevGlassSurface) are the entire passive material.
-
-        DevLiquidFx ripple = new DevLiquidFx(activity);
-        shell.addView(ripple, new FrameLayout.LayoutParams(-1, -1));
+        // R10 strict transparent baseline: the only permanent shell drawing
+        // is a 1dp optical perimeter. There is no full-surface child, no AGSL
+        // ripple, no blur bitmap, no gradient and no filled round rectangle.
+        // Thus anything opaque after this change is outside our glass paint.
+        DevGlassRim rim = new DevGlassRim(activity, true);
+        shell.addView(rim, new FrameLayout.LayoutParams(-1, -1));
+        DevFileLog.note("r10 STRICT_GLASS: null shell background, rim-only children");
     }
 
     private static View createLens(Activity activity, boolean dark) {
