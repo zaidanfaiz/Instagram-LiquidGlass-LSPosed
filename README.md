@@ -7,7 +7,7 @@ An unofficial **LSPosed module** that replaces Instagram's bottom navigation app
 ![Platform](https://img.shields.io/badge/platform-Android%20%7C%20LSPosed-blue)
 
 > [!IMPORTANT]
-> **Early beta.** Built for **Instagram 452.0.0.48.64 on Android 16**. Other Instagram versions, Android versions, ROMs and device configurations are **not verified**. This project is not affiliated with, sponsored by, or endorsed by Instagram, Meta, Apple or LSPosed.
+> **Early beta.** The module is **not intentionally restricted** to one Instagram or Android version. It may work on other versions, but its compatibility hooks can differ. The developer's documented test environment is **Android 16 (API 36) and Instagram 452.0.0.48.64**; results on other versions have not yet been verified. Independent project—not affiliated with Instagram, Meta, Apple or LSPosed.
 
 [English](README.md) · [Bahasa Indonesia](README_ID.md) · [Downloads](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases) · [Changelog](CHANGELOG.md) · [Report a bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)
 
@@ -20,29 +20,52 @@ An unofficial **LSPosed module** that replaces Instagram's bottom navigation app
 - **Context-aware visibility:** the overlay is intended to show on the main tabs and DM inbox, and hide in opened chats, Reels comment sheets, Stories and other users' profiles.
 - **Native app retained:** uses the installed Instagram app and its original tab click handlers. **No patched Instagram APK is distributed.**
 
-## Compatibility
+## Compatibility and tested device
 
-| Requirement | Status |
+There is **no hardcoded Instagram-version whitelist** in the module: it activates for the `com.instagram.android` package and looks for recognizable navigation views. Thus **other Instagram and Android versions may also work**, but it is not possible to guarantee this without testing their view hierarchies and rendering behavior.
+
+| Category | Details |
 | --- | --- |
-| Instagram **452.0.0.48.64** | Primary supported target; tested during development |
-| Android **16 / API 36** | Primary tested environment |
-| **LSPosed** with Instagram in module scope | Required |
-| Rooted device / LSPosed-compatible environment | Required |
-| Android 10–15, newer Instagram builds, other ROMs | **Not verified** |
-| iOS / non-root Android | Not supported |
+| Android APK minimum | **Android 10 (API 29)**, as declared by `minSdk`; this does not guarantee that every feature works on API 29 |
+| Instagram application | Installed `com.instagram.android`; internal navigation layouts can vary between versions |
+| Required framework | Working **LSPosed** environment, scoped to Instagram |
+| Root / hooking | Root or an environment capable of running LSPosed |
+| Other Android and Instagram versions | **Potentially compatible; not yet independently verified** |
+| iOS | Not compatible |
 
-Instagram is updated frequently and may change its internal views or navigation logic without notice. Disable this module before testing an unverified Instagram build.
+### Developer's device test data
 
-## Download and install
+These values were directly observed in local Android diagnostics; unrecorded hardware details are **not guessed**.
 
-1. Download the APK asset from the [latest project Releases page](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases). Download **the module APK**, not Instagram itself. Verify its SHA-256 against the attached `SHA256SUMS.txt` if you can.
-2. Install the APK on your rooted Android device with a working LSPosed environment.
-3. Open **LSPosed → Modules → Instagram Liquid Glass**, enable it, and select **Instagram (`com.instagram.android`)** as the app scope. Avoid enabling unrelated apps.
-4. **Force-stop Instagram**, then open it again. Reboot if your LSPosed environment requires it.
-5. Verify Home, Reels, DM, your profile and Search. Test Reels comment playback and the glass blur before relying on the beta.
+| Test field | Observed value |
+| --- | --- |
+| Android | **Android 16 / API 36** |
+| Instagram version | **452.0.0.48.64** |
+| Screen/window resolution reported by Android | **1440 × 3200 pixels** |
+| Hooked Instagram package | `com.instagram.android` |
+| Module package | `dev.zaidan.igglass` |
+| Manufacturer / model | **Not yet recorded in the available diagnostics** |
+| ROM/build identifier | **Not yet recorded** |
 
-> [!NOTE]
-> The first beta is **debug-signed** by GitHub Actions. A later rebuild may have a different signing certificate and Android may refuse to install it as an update. In that case, disable and uninstall **the module app only**, then install the new module APK and re-enable its LSPosed scope. **Do not uninstall Instagram or clear Instagram data** for a signing mismatch.
+This is **a record of development testing, not a compatibility lock**. Reports from other phones, ROMs, Android versions and Instagram builds are welcome. A newer Instagram update may change view names, gesture handling or bottom margins, so test carefully before relying on the module.
+
+## Installation and manual updates
+
+1. Download the module APK from the [GitHub Releases page](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases). Verify its SHA-256 with the attached `SHA256SUMS.txt` if desired. **This is not a modified Instagram APK.**
+2. Install the APK on an Android device with LSPosed.
+3. In **LSPosed → Modules**, enable Instagram Liquid Glass and scope it only to **Instagram (`com.instagram.android`)**.
+4. Force-stop Instagram and reopen it, or reboot if your environment requires a restart.
+5. Test all five tabs, search, Reels comments, fullscreen and the frosted blur.
+
+### Updating the module (manual by design)
+
+The module **does not auto-download or auto-install updates**. When a new release appears:
+
+1. Visit [GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases) and download the new module APK.
+2. Open the downloaded file with Android's package installer and choose **Update** if offered.
+3. Force-stop Instagram and reopen it. Keep the Instagram app and its data intact.
+
+**Signing compatibility matters:** Android can update the existing module **only when the package name and signing certificate are compatible, and the new APK has an acceptable version code**. The current `v0.1.0-beta.1` APK is signed with a CI debug certificate; a future CI build may use a different key, causing **Update** to fail. In that case, disable and uninstall the **LSPosed module app only**, install the newer APK, and re-enable its scope. We recommend a stable maintainer-controlled signing key for future in-place updates. Never uninstall Instagram to fix a module signature mismatch.
 
 ### How the gestures work
 
@@ -55,7 +78,7 @@ Horizontal swipes **on the content itself** use a compatibility layer that obser
 - The glass is an **Android frosted-backdrop approximation**, not Apple's system-compositor Liquid Glass. Reels video sampling is capped at roughly **2 frames per second** to limit overhead.
 - Video sampling can be unavailable on particular player surfaces or protected content. The module falls back to transparent glass instead of displaying an opaque placeholder.
 - Background blur may lag fast-moving content; it is intentionally lighter during some transitions.
-- Fullscreen spacing and tab detection depend on Instagram 452's specific view hierarchy. A changed app build may bring back bottom gaps or incorrect tab routing.
+- Fullscreen spacing and tab detection depend on specific Instagram view hierarchies. Different app builds may work, or may produce bottom gaps or incorrect routing until their layouts are supported.
 - On the first beta, the module may need reinstallation between differently signed builds, as described above.
 
 If Instagram video stalls, tabs stop responding, or the UI breaks: **disable the module in LSPosed and force-stop Instagram**. The original app can then run without the overlay.
@@ -86,9 +109,11 @@ The repository's [GitHub Actions build workflow](.github/workflows/build-apk.yml
 
 ## Contributing and reporting bugs
 
-Check the [issues](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues) before opening a new one. Useful reports include the Android version, Instagram version, LSPosed version, module version, clear reproduction steps, whether the problem disappears with the module disabled, and a **redacted** `IGGlass` log.
+Propose improvements through a **GitHub Pull Request**. Contributors may edit a GitHub-hosted fork to prepare a proposal, but changes enter **`main` only after explicit maintainer review and approval**; opening a PR is not permission to merge or publish an official APK. The maintainer retains the final decision. See [CONTRIBUTING.md](CONTRIBUTING.md) and [LICENSE](LICENSE).
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting changes. See [SECURITY.md](SECURITY.md) for security reports.
+**Source-available, not unrestricted open source:** the original project code is offered under limited contribution terms; public redistribution, mirrors, rebranded modules and independent derivative releases need prior written authorization. **Public GitHub repositories can still be cloned and forked technically, and GitHub's Terms allow on-platform forking**; neither a license nor branch protection can make publicly visible source impossible to copy.
+
+For bug reports include the Android/ROM and Instagram versions, LSPosed and module versions, reproduction steps and a **redacted** `IGGlass` log. See [SECURITY.md](SECURITY.md) for security-related reports.
 
 ## Credits, copyright and status
 
@@ -96,6 +121,6 @@ This is an **independent community project**. Instagram and Meta are trademarks 
 
 The repository includes an MIT-licensed, adapted Android liquid-glass shader; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for its author, copyright notice and license. The adapted shader is not necessarily enabled in the current safe render path.
 
-**Project licensing:** no license has yet been granted for the project's original source code. Viewing a public repository is not by itself permission to redistribute, sublicense or publish modified builds. A project-wide license will be added only with the maintainer's approval.
+**Project licensing:** see the custom [source-available contribution terms](LICENSE). Personal experimentation and GitHub-hosted proposed modifications are permitted under their limited conditions; **official upstream merges require maintainer approval**, and there is **no general right to redistribute the original project or independent modified APKs**. These terms are not an OSI-approved open-source license. Third-party shader components retain their own MIT license as described in the notices.
 
 For release history and known beta limitations see [CHANGELOG.md](CHANGELOG.md).
