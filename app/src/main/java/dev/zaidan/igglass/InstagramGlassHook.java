@@ -1,702 +1,315 @@
 package dev.zaidan.igglass;
 
 import android.app.Activity;
-import android.content.res.Configuration;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Outline;
-import android.graphics.RenderEffect;
-import android.graphics.Shader;
-import android.graphics.drawable.GradientDrawable;
-import android.os.Build;
-import android.view.Choreographer;
 import android.view.MotionEvent;
-import android.view.ViewTreeObserver;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewOutlineProvider;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
-import java.util.Locale;
 import java.util.WeakHashMap;
+
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
- * v0.9 split Liquid Glass + Story/Profile auto-hide (beta) for Instagram 452.
+ * Instagram Liquid Glass 0.1-dev: clean implementation for IG 452 / Android 16.
  *
- * It relocates the ORIGINAL navigation buttons and draws a sampled, blurred
- * approximation of content behind them. This is not the native iOS shader.
- * Instagram may change its private hierarchy in any release.
+ * 1) Moves native clickable tab children without replacing Instagram listeners.
+ * 2) Reclaims the confirmed 180px reserved tab height (v0.8 device-tested).
+ * 3) Renders a low-overhead translucent glass with a separate Search circle.
+ * 4) Hides overlays for Story/profile detail screens or hidden original tabs.
+ * 5) Writes lightweight diagnostics to Download/ via MediaStore asynchronously.
+ *
+ * No frame-by-frame Canvas captures, bitmap screenshot loops or access to
+ * private account data. Unknown view trees are never removed indiscriminately.
  */
 public final class InstagramGlassHook implements IXposedHookLoadPackage {
-    private static final String PACKAGE = "com.instagram.android";
-    private static final WeakHashMap<View, Boolean> STYLED = new WeakHashMap<>();
-    private static final int HORIZONTAL_MARGIN_DP = 16;
-    private static final int BOTTOM_MARGIN_DP = GlassV9Enhancements.BOTTOM_MARGIN_DP;
-    private static final long MAX_FRAME_INTERVAL_NS = 83_000_000L; // up to ~12 fps while scrolling
-    private static final long ACTIVE_TAIL_NS = 700_000_000L;
-    private static final long IDLE_REFRESH_MS = 550L;
-    private static final WeakHashMap<Activity, GlassUpdater> SCENES = new WeakHashMap<>();
+    private static final String TARGET = "com.instagram.android";
+    private static final WeakHashMap<Activity, Controller> CONTROLLERS =
+            new WeakHashMap<>();
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
-        if (!PACKAGE.equals(load.packageName)) return;
-        XposedBridge.log("IGGlass v0.9-split-nav: " + load.processName);
-        XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent", MotionEvent.class,
-                new XC_MethodHook() {
-                    @Override protected void afterHookedMethod(MethodHookParam param) {
-                        Activity activity = (Activity) param.thisObject;
-                        GlassUpdater updater = SCENES.get(activity);
-                        if (updater != null) {
-                            updater.onTouch((MotionEvent) param.args[0]);
-                        }
-                    }
-                });
-        XposedHelpers.findAndHookMethod(Activity.class, "onDestroy", new XC_MethodHook() {
-            @Override protected void beforeHookedMethod(MethodHookParam param) {
-                Activity activity = (Activity) param.thisObject;
-                GlassUpdater updater = SCENES.remove(activity);
-                if (updater != null) updater.stop();
-            }
-        });
+        if (!TARGET.equals(load.packageName)) return;
+
         XposedHelpers.findAndHookMethod(Activity.class, "onResume",
                 new XC_MethodHook() {
-                    @Override protected void afterHookedMethod(MethodHookParam param) {
-                        Activity activity = (Activity) param.thisObject;
-                        if (!PACKAGE.equals(activity.getPackageName())) return;
-                        View decor = activity.getWindow().getDecorView();
-                        for (int delay : new int[] {300, 1100, 2500}) {
-                            decor.postDelayed(() -> {
-                                if (activity.isFinishing() || activity.isDestroyed()) return;
-                                try { install(activity); }
-                                catch (Throwable e) { XposedBridge.log("IGGlass: " + e); }
-                            }, delay);
+                    @Override protected void afterHookedMethod(MethodHookParam p) {
+                        Activity activity = (Activity) p.thisObject;
+                        if (!isMain(activity)) return;
+                        DevFileLog.start(activity);
+                        Controller c = CONTROLLERS.get(activity);
+                        if (c == null) {
+                            c = new Controller(activity);
+                            CONTROLLERS.put(activity, c);
                         }
+                        c.onResume();
+                    }
+                });
+
+        XposedHelpers.findAndHookMethod(Activity.class, "onPause",
+                new XC_MethodHook() {
+                    @Override protected void beforeHookedMethod(MethodHookParam p) {
+                        Controller c = CONTROLLERS.get((Activity) p.thisObject);
+                        if (c != null) c.onPause();
+                    }
+                });
+
+        XposedHelpers.findAndHookMethod(Activity.class, "onDestroy",
+                new XC_MethodHook() {
+                    @Override protected void beforeHookedMethod(MethodHookParam p) {
+                        Controller c = CONTROLLERS.remove((Activity) p.thisObject);
+                        if (c != null) c.stop();
+                    }
+                });
+
+        // Observe UP only; do not override/consume dispatch, native gesture
+        // processing or original Instagram click listeners.
+        XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent",
+                MotionEvent.class, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam p) {
+                        MotionEvent ev = (MotionEvent) p.args[0];
+                        if (ev == null || ev.getActionMasked() != MotionEvent.ACTION_UP) {
+                            return;
+                        }
+                        Controller c = CONTROLLERS.get((Activity) p.thisObject);
+                        if (c != null) c.onTouch(ev);
                     }
                 });
     }
 
-    private static void install(Activity activity) {
-        View decor = activity.getWindow().getDecorView();
-        if (!(decor instanceof ViewGroup) || decor.getHeight() == 0) return;
-        ViewGroup nav = findCandidate((ViewGroup) decor, decor.getHeight(), 0);
-        if (nav == null || STYLED.containsKey(nav)) return;
-
-        View content = activity.findViewById(android.R.id.content);
-        if (!(content instanceof FrameLayout)
-                || !(nav.getParent() instanceof ViewGroup)) {
-            fallback(nav);
-            STYLED.put(nav, true);
-            return;
-        }
-
-        FrameLayout host = (FrameLayout) content;
-        ViewGroup parent = (ViewGroup) nav.getParent();
-        NavDiagnostics.dump(activity, nav, parent, "before-floating");
-        if (!descendsFrom(parent, host) || isInsideCollection(parent)) {
-            fallback(nav);
-            STYLED.put(nav, true);
-            return;
-        }
-        int height = nav.getHeight();
-        if (height < dp(nav, 34) || height > dp(nav, 105)) return;
-
-        int oldIndex = parent.indexOfChild(nav);
-        ViewGroup.LayoutParams oldParams = nav.getLayoutParams();
-        boolean dark = (nav.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-
-        FrameLayout shell = new FrameLayout(activity);
-        shell.setClipChildren(true);
-        shell.setClipToPadding(true);
-        shell.setElevation(dp(nav, 16));
-        shell.setOutlineProvider(new ViewOutlineProvider() {
-            @Override public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(),
-                        dp(view, 33));
-            }
-        });
-        shell.setClipToOutline(true);
-
-        ImageView sampledBackdrop = new ImageView(activity);
-        sampledBackdrop.setScaleType(ImageView.ScaleType.FIT_XY);
-        sampledBackdrop.setClickable(false);
-        if (Build.VERSION.SDK_INT >= 31) {
-            sampledBackdrop.setRenderEffect(RenderEffect.createBlurEffect(
-                    dp(nav, 10), dp(nav, 10), Shader.TileMode.CLAMP));
-        }
-        shell.addView(sampledBackdrop, new FrameLayout.LayoutParams(-1, -1));
-
-        View frost = new View(activity);
-        GradientDrawable tint = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                dark ? new int[] {0x6031384A, 0x4A090C18}
-                     : new int[] {0x8AFFFFFF, 0x50F6FAFF});
-        tint.setCornerRadius(dp(nav, 33));
-        frost.setBackground(tint);
-        frost.setClickable(false);
-        shell.addView(frost, new FrameLayout.LayoutParams(-1, -1));
-
-        View outline = new View(activity);
-        GradientDrawable rim = new GradientDrawable();
-        rim.setColor(Color.TRANSPARENT);
-        rim.setCornerRadius(dp(nav, 33));
-        rim.setStroke(dp(nav, 1), dark ? 0xA0FFFFFF : 0xBFFFFFFF);
-        outline.setBackground(rim);
-        outline.setClickable(false);
-
-        FrameLayout.LayoutParams floatParams = new FrameLayout.LayoutParams(
-                -1, height, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        floatParams.leftMargin = dp(nav, HORIZONTAL_MARGIN_DP);
-        floatParams.rightMargin = dp(nav, HORIZONTAL_MARGIN_DP);
-        floatParams.bottomMargin = dp(nav, BOTTOM_MARGIN_DP);
-
-        GlassV9Enhancements.Setup glass = null;
-        try {
-            parent.removeView(nav);
-            host.addView(shell, floatParams);
-            shell.addView(nav, new FrameLayout.LayoutParams(-1, -1));
-            // Do not clear icon/badge backgrounds; only remove full-width
-            // opaque layers that otherwise obscure the frosted backdrop.
-            clearOpaqueFullSizeWrappers(nav, nav.getWidth(), height, 0);
-            shell.addView(outline, new FrameLayout.LayoutParams(-1, -1));
-            glass = GlassV9Enhancements.attach(activity, host, shell, nav,
-                    height, dark);
-
-            // Remove the former bottom bar's *layout slot*, including small
-            // non-clickable decorative wrappers. Let the feed resize normally.
-            // Never remove a container holding feed, stories, or live controls.
-            if (!releaseKnownNavSpace(parent, height)) {
-                collapseLegacyNavSlot(parent, host, height);
-            }
-            host.bringChildToFront(shell);
-            STYLED.put(nav, true);
-            GlassUpdater old = SCENES.remove(activity);
-            if (old != null) old.stop();
-            GlassUpdater updater = new GlassUpdater(activity, host, shell,
-                    sampledBackdrop, glass);
-            SCENES.put(activity, updater);
-            updater.start();
-            host.postDelayed(() -> NavDiagnostics.dump(activity, nav, parent,
-                    "after-floating"), 450);
-            XposedBridge.log("IGGlass v0.9-split-nav: floating UI installed");
-        } catch (Throwable e) {
-            XposedBridge.log("IGGlass: overlay failed, restoring: " + e);
-            try {
-                if (glass != null) {
-                    glass.restoreSearch();
-                    if (glass.searchShell != null && glass.searchShell.getParent() == host) {
-                        host.removeView(glass.searchShell);
-                    }
-                }
-                if (nav.getParent() instanceof ViewGroup) {
-                    ((ViewGroup) nav.getParent()).removeView(nav);
-                }
-                if (shell.getParent() == host) host.removeView(shell);
-                if (nav.getParent() == null) {
-                    parent.addView(nav, Math.max(0,
-                            Math.min(oldIndex, parent.getChildCount())), oldParams);
-                }
-            } catch (Throwable restoreError) {
-                XposedBridge.log("IGGlass: restore: " + restoreError);
-            }
-            fallback(nav);
-            STYLED.put(nav, true);
-        }
+    private static boolean isMain(Activity activity) {
+        return TARGET.equals(activity.getPackageName())
+                && activity.getClass().getName().endsWith(".InstagramMainActivity");
     }
 
-
-    /**
-     * Verified using the Instagram 452.0.0.48.64 runtime hierarchy:
-     *   layout_container_main_wrapper (2979px high)
-     *   - layout_container_main (bottomMargin = 180px)
-     *   - swipeable_tab_view_pager (bottomMargin = 180px)
-     *   - tab_bar_shadow (1px, still visible after nav relocation)
-     *
-     * Instagram reserves the tab row's 180px by shrinking the actual feed
-     * and its pager, not by putting them in a tiny empty wrapper. Therefore
-     * collapsing parent layouts cannot work. Only reclaim this space after
-     * checking the exact parent/child resource IDs and margin values seen in
-     * the user's diagnostic log; never alter unknown layouts.
-     */
-    private static boolean releaseKnownNavSpace(ViewGroup oldParent, int navHeight) {
-        if (!"layout_container_main_wrapper".equals(resourceName(oldParent))) {
-            XposedBridge.log("IGGlass: targeted margin fix skipped: parent id mismatch");
-            return false;
-        }
-        View main = null;
-        View pager = null;
-        View shadow = null;
-        View bottomSearchBar = null;
-        for (int i = 0; i < oldParent.getChildCount(); i++) {
-            View child = oldParent.getChildAt(i);
-            String id = resourceName(child);
-            if ("layout_container_main".equals(id)) main = child;
-            else if ("swipeable_tab_view_pager".equals(id)) pager = child;
-            else if ("tab_bar_shadow".equals(id)) shadow = child;
-            else if ("layout_bottom_searchbar".equals(id)) bottomSearchBar = child;
-        }
-        if (!hasReservedBottomMargin(main, navHeight)
-                || !hasReservedBottomMargin(pager, navHeight)) {
-            XposedBridge.log("IGGlass: targeted margin fix skipped: "
-                    + "feed/pager IDs or original margins did not match");
-            return false;
-        }
-        try {
-            clearBottomMargin(main, "layout_container_main");
-            clearBottomMargin(pager, "swipeable_tab_view_pager");
-            if (hasReservedBottomMargin(bottomSearchBar, navHeight)) {
-                clearBottomMargin(bottomSearchBar, "layout_bottom_searchbar");
-            }
-            if (shadow != null && shadow.getHeight() <= dp(shadow, 3)) {
-                shadow.setVisibility(View.GONE);
-                XposedBridge.log("IGGlass: hidden obsolete tab_bar_shadow");
-            }
-            oldParent.requestLayout();
-            XposedBridge.log("IGGlass: released " + navHeight
-                    + "px reserved bottom space for feed and pager");
-            return true;
-        } catch (Throwable e) {
-            XposedBridge.log("IGGlass: targeted margin fix failed: " + e);
-            return false;
-        }
-    }
-
-    private static boolean hasReservedBottomMargin(View view, int expected) {
-        if (view == null) return false;
-        ViewGroup.LayoutParams params = view.getLayoutParams();
-        return params instanceof FrameLayout.LayoutParams
-                && ((FrameLayout.LayoutParams) params).bottomMargin == expected;
-    }
-
-    private static void clearBottomMargin(View view, String name) {
-        FrameLayout.LayoutParams params =
-                (FrameLayout.LayoutParams) view.getLayoutParams();
-        int previous = params.bottomMargin;
-        params.bottomMargin = 0;
-        view.setLayoutParams(params);
-        XposedBridge.log("IGGlass: " + name
-                + " bottomMargin " + previous + " -> 0");
-    }
-
-    private static String resourceName(View view) {
-        if (view == null || view.getId() == View.NO_ID) return "";
-        try {
-            return view.getResources().getResourceEntryName(view.getId());
-        } catch (Throwable ignored) {
-            return "";
-        }
-    }
-
-    /**
-     * The old Instagram bottom-navigation *slot* is not the glass overlay:
-     * the actual tab row has already been moved to 'shell'. With the former
-     * wrapper still measured in the app, the feed stops above an opaque band.
-     *
-     * Collapse only small, bottom-anchored containers with no interactive or
-     * textual content remaining. Do not touch the system navigation bar.
-     */
-    private static void collapseLegacyNavSlot(ViewGroup formerParent,
-                                               FrameLayout host, int navHeight) {
-        View candidate = formerParent;
-        int collapsed = 0;
-        for (int depth = 0; depth < 5; depth++) {
-            if (!(candidate instanceof ViewGroup) || candidate == host) break;
-            ViewGroup group = (ViewGroup) candidate;
-            View next = group.getParent() instanceof View
-                    ? (View) group.getParent() : null;
-            if (next == null || !descendsFrom(group, host)) break;
-
-            int slotHeight = group.getHeight();
-            if (slotHeight <= 0 || slotHeight > navHeight + dp(group, 45)
-                    || slotHeight > dp(group, 135)) break;
-
-            int[] slotXY = new int[2];
-            int[] hostXY = new int[2];
-            group.getLocationOnScreen(slotXY);
-            host.getLocationOnScreen(hostXY);
-            int relativeTop = slotXY[1] - hostXY[1];
-            if (relativeTop < host.getHeight() * 0.66f) break;
-            if (!isEmptyNavDecoration(group, 0)) {
-                XposedBridge.log("IGGlass: preserve live slot "
-                        + group.getClass().getSimpleName()
-                        + " children=" + group.getChildCount());
-                break;
-            }
-
-            group.setBackground(null);
-            group.setMinimumHeight(0);
-            group.setVisibility(View.GONE);
-            group.requestLayout();
-            collapsed++;
-            XposedBridge.log("IGGlass: collapsed old navbar slot: "
-                    + group.getClass().getSimpleName()
-                    + " h=" + slotHeight + " children=" + group.getChildCount());
-            candidate = next;
-        }
-        if (collapsed == 0) {
-            // Visible in LSPosed logs for users whose Instagram version has a
-            // proprietary bottom panel that cannot be safely collapsed.
-            XposedBridge.log("IGGlass: old nav slot not safely collapsible; "
-                    + "retain its original layout pending hierarchy analysis");
-        }
-        host.requestLayout();
-    }
-
-    private static boolean isEmptyNavDecoration(View view, int depth) {
-        if (depth >= 5) return false;
-        if (view.getVisibility() != View.VISIBLE) return true;
-        if (view.hasOnClickListeners() || view.isClickable()
-                || view.isLongClickable() || view.isFocusable()) return false;
-        if (view instanceof android.widget.TextView
-                && ((android.widget.TextView) view).length() > 0) return false;
-        if (view.getContentDescription() != null
-                && view.getContentDescription().length() > 0) return false;
-        if (!(view instanceof ViewGroup)) return true;
-        ViewGroup group = (ViewGroup) view;
-        if (group.getChildCount() > 12) return false;
-        for (int i = 0; i < group.getChildCount(); i++) {
-            if (!isEmptyNavDecoration(group.getChildAt(i), depth + 1))
-                return false;
-        }
-        return true;
-    }
-
-    private static void clearOpaqueFullSizeWrappers(ViewGroup nav,
-                                                     int barWidth, int barHeight,
-                                                     int depth) {
-        if (depth > 3) return;
-        nav.setBackground(null);
-        for (int i = 0; i < nav.getChildCount(); i++) {
-            View child = nav.getChildAt(i);
-            if (!(child instanceof ViewGroup)) continue;
-            if (child.getWidth() >= barWidth * .82f
-                    && child.getHeight() >= barHeight * .82f) {
-                clearOpaqueFullSizeWrappers((ViewGroup) child,
-                        barWidth, barHeight, depth + 1);
-            }
-        }
-    }
-
-    /**
-     * Renders only a small region of the host beneath the floating bar into
-     * a low-resolution bitmap. Hiding the shell *during the draw call* avoids
-     * capturing the bar itself. It never requests device screenshot permission.
-     *
-     * A blank Instagram bottom spacer does not reveal actual feed pixels;
-     * in that case sample the strip immediately above as a visual fallback.
-     */
-    private static void updateBackdrop(Activity activity, FrameLayout host,
-                                       FrameLayout shell, ImageView background,
-                                       FrameLayout otherShell,
-                                       boolean duringScroll) {
-        if (activity.isFinishing() || activity.isDestroyed()
-                || shell.getParent() != host || !shell.isAttachedToWindow()
-                || shell.getVisibility() != View.VISIBLE) return;
-        if (shell.getWidth() <= 0 || shell.getHeight() <= 0) return;
-        if (activity.hasWindowFocus()) {
-            try {
-                int[] navXY = new int[2];
-                int[] hostXY = new int[2];
-                shell.getLocationOnScreen(navXY);
-                host.getLocationOnScreen(hostXY);
-                int x = navXY[0] - hostXY[0];
-                int y = navXY[1] - hostXY[1];
-                int w = shell.getWidth(), h = shell.getHeight();
-
-                Bitmap behind = sample(host, shell, otherShell, x, y, w, h);
-                if (!duringScroll && behind != null && textureScore(behind) < 11.0) {
-                    Bitmap upper = sample(host, shell, otherShell, x, y - h, w, h);
-                    if (upper != null) {
-                        if (textureScore(upper) > textureScore(behind) + 5.0) {
-                            behind.recycle();
-                            behind = upper;
-                        } else {
-                            upper.recycle();
-                        }
-                    }
-                }
-                if (behind != null) background.setImageBitmap(behind);
-            } catch (Throwable error) {
-                XposedBridge.log("IGGlass: sampling unsupported: " + error);
-            }
-        }
-    }
-
-    /**
-     * Sample both pills independently, excluding both floating shells from
-     * each bitmap. Keep nav visibility synced to Instagram's active screen.
-     */
-    private static final class GlassUpdater
-            implements Choreographer.FrameCallback, ViewTreeObserver.OnScrollChangedListener {
+    private static final class Controller {
         private final Activity activity;
-        private final FrameLayout host;
-        private final FrameLayout shell;
-        private final ImageView background;
-        private final GlassV9Enhancements.Setup glass;
-        private long lastFrameNs;
-        private long activeUntilNs;
-        private long lastVisibilityCheckNs;
-        private String previousHideReason = "uninitialized";
-        private boolean frameQueued;
-        private boolean stopped;
+        private final View decor;
+        private DevGlassUi.Scene scene;
+        private boolean running;
+        private boolean resumed;
+        private long lastMissingLog;
+        private long lastFragmentLog;
+        private String lastReason = "initial";
 
-        private final Runnable idleRefresh = new Runnable() {
+        private final Runnable poll = new Runnable() {
             @Override public void run() {
-                if (!isAlive()) {
+                if (!running || activity.isDestroyed() || activity.isFinishing()) {
                     stop();
                     return;
                 }
-                syncScreenVisibility();
-                if (System.nanoTime() >= activeUntilNs) {
-                    updateGlass(false);
+                try {
+                    if (resumed) {
+                        if (scene == null) install();
+                        else if (!scene.attached()) {
+                            DevFileLog.note("native nav tree changed; attempting safe rebind");
+                            scene.removeAndRestore();
+                            scene = null;
+                            install();
+                        }
+                        sync();
+                    }
+                } catch (Throwable e) {
+                    DevFileLog.note("poll error " + e.getClass().getSimpleName());
                 }
-                host.postDelayed(this, IDLE_REFRESH_MS);
+                if (running) decor.postDelayed(this, 500);
             }
         };
 
-        GlassUpdater(Activity activity, FrameLayout host, FrameLayout shell,
-                     ImageView background, GlassV9Enhancements.Setup glass) {
+        Controller(Activity activity) {
             this.activity = activity;
-            this.host = host;
-            this.shell = shell;
-            this.background = background;
-            this.glass = glass;
+            this.decor = activity.getWindow().getDecorView();
         }
 
-        void start() {
-            if (!isAlive()) return;
-            host.getViewTreeObserver().addOnScrollChangedListener(this);
-            activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
-            syncScreenVisibility();
-            queueFrame();
-            host.postDelayed(idleRefresh, IDLE_REFRESH_MS);
-        }
-
-        private void syncScreenVisibility() {
-            if (!isAlive()) return;
-            long now = System.nanoTime();
-            if (now - lastVisibilityCheckNs < 250_000_000L) return;
-            lastVisibilityCheckNs = now;
-            String reason;
-            try {
-                reason = NavScreenInspector.hideReason(activity, glass.nav);
-            } catch (Throwable e) {
-                XposedBridge.log("IGGlass-SCREEN: screen detection failed: " + e);
-                return;
+        void onResume() {
+            resumed = true;
+            if (!running) {
+                running = true;
+                DevFileLog.note("main activity resumed; searching for verified tab_bar");
+                decor.postDelayed(poll, 350);
             }
-            boolean show = reason == null;
-            int visibility = show ? View.VISIBLE : View.GONE;
-            if (shell.getVisibility() != visibility) shell.setVisibility(visibility);
-            if (glass.searchShell != null
-                    && glass.searchShell.getVisibility() != visibility) {
-                glass.searchShell.setVisibility(visibility);
-            }
-            String key = show ? "visible" : reason;
-            if (!key.equals(previousHideReason)) {
-                previousHideReason = key;
-                XposedBridge.log("IGGlass-SCREEN: " + (show ? "visible" : "hidden="+reason)
-                        + " foreground=" + NavScreenInspector.foregroundSummary(activity));
-            }
+            decor.postDelayed(this::installIfNeeded, 200);
+            decor.postDelayed(this::installIfNeeded, 1000);
+            decor.postDelayed(this::installIfNeeded, 2200);
+            decor.postDelayed(this::sync, 280);
         }
 
-        private void updateGlass(boolean duringScroll) {
-            if (shell.getVisibility() != View.VISIBLE) return;
-            updateBackdrop(activity, host, shell, background,
-                    glass.searchShell, duringScroll);
-            if (glass.searchShell != null && glass.searchBackdrop != null) {
-                updateBackdrop(activity, host, glass.searchShell,
-                        glass.searchBackdrop, shell, duringScroll);
-            }
+        void onPause() {
+            resumed = false;
+            if (scene != null) scene.show(false);
+            DevFileLog.note("main activity paused: hide both glass shells");
         }
 
-        void onTouch(MotionEvent event) {
-            if (stopped || event == null) return;
-            glass.onTouch(event);
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                case MotionEvent.ACTION_MOVE:
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
-                    queueFrame();
-                    if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                        // Wait until Instagram commits its tab/fragment navigation.
-                        host.postDelayed(this::syncScreenVisibility, 200);
-                    }
-                    break;
-                default: break;
-            }
-        }
-
-        @Override public void onScrollChanged() {
-            if (stopped) return;
-            activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
-            queueFrame();
-        }
-
-        private boolean isAlive() {
-            return !stopped && !activity.isDestroyed() && !activity.isFinishing()
-                    && shell.getParent() == host;
-        }
-
-        private void queueFrame() {
-            if (frameQueued || !isAlive()) return;
-            frameQueued = true;
-            Choreographer.getInstance().postFrameCallback(this);
-        }
-
-        @Override public void doFrame(long frameTimeNanos) {
-            frameQueued = false;
-            if (!isAlive()) {
-                stop();
-                return;
-            }
-            if (frameTimeNanos - lastFrameNs >= MAX_FRAME_INTERVAL_NS) {
-                lastFrameNs = frameTimeNanos;
-                syncScreenVisibility();
-                updateGlass(true);
-            }
-            if (System.nanoTime() < activeUntilNs) queueFrame();
+        void onTouch(MotionEvent ev) {
+            if (!resumed || scene == null || !scene.attached()) return;
+            scene.onTouch(ev);
+            decor.postDelayed(this::sync, 240);
         }
 
         void stop() {
-            if (stopped) return;
-            stopped = true;
-            host.removeCallbacks(idleRefresh);
-            ViewTreeObserver observer = host.getViewTreeObserver();
-            if (observer.isAlive()) observer.removeOnScrollChangedListener(this);
-            Choreographer.getInstance().removeFrameCallback(this);
-        }
-    }
-
-    private static Bitmap sample(FrameLayout host, FrameLayout shell,
-                                 FrameLayout otherShell,
-                                 int x, int y, int w, int h) {
-        final float scale = .30f;
-        Bitmap bitmap = Bitmap.createBitmap(
-                Math.max(1, (int) (w * scale)),
-                Math.max(1, (int) (h * scale)),
-                Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        canvas.drawColor(0xFF13151D);
-        canvas.scale(scale, scale);
-        canvas.translate(-x, -y);
-        canvas.clipRect(x, y, x + w, y + h);
-        try {
-            if (host.getBackground() != null) host.getBackground().draw(canvas);
-            for (int i = 0; i < host.getChildCount(); i++) {
-                View child = host.getChildAt(i);
-                if (child == shell || child == otherShell
-                        || child.getVisibility() != View.VISIBLE) continue;
-                int saved = canvas.save();
-                canvas.translate(child.getLeft() - host.getScrollX(),
-                        child.getTop() - host.getScrollY());
-                canvas.concat(child.getMatrix());
-                child.draw(canvas);
-                canvas.restoreToCount(saved);
+            if (!running) return;
+            running = false;
+            resumed = false;
+            decor.removeCallbacks(poll);
+            if (scene != null) {
+                scene.removeAndRestore();
+                scene = null;
             }
-            return bitmap;
-        } catch (Throwable e) {
-            bitmap.recycle();
+            DevFileLog.note("main activity released");
+        }
+
+        private void installIfNeeded() {
+            if (resumed && running && scene == null) install();
+        }
+
+        private void install() {
+            if (!resumed || activity.isDestroyed() || activity.isFinishing()
+                    || !(decor instanceof ViewGroup)) return;
+            View container = activity.findViewById(android.R.id.content);
+            if (!(container instanceof FrameLayout)) return;
+            FrameLayout host = (FrameLayout) container;
+            ViewGroup nav = findVerifiedTabBar((ViewGroup) decor, 0, new int[] {500});
+            if (nav == null) {
+                long now = System.currentTimeMillis();
+                if (now - lastMissingLog > 10_000) {
+                    lastMissingLog = now;
+                    DevFileLog.note("verified Instagram 452 tab_bar not visible yet");
+                }
+                return;
+            }
+            ViewGroup parent = (ViewGroup) nav.getParent();
+            if (!isDescendant(parent, host)) return;
+            scene = DevGlassUi.create(activity, host, parent, nav);
+            if (scene == null) return;
+            reclaimOriginalNavSpace();
+            DevFileLog.note("0.1-dev active; no repeated full-screen screenshot blur");
+            sync();
+        }
+
+        private void sync() {
+            if (!running || !resumed || scene == null || !scene.attached()) return;
+            String reason = DevScreenDetector.hiddenBecause(activity, scene.nav);
+            String state = reason == null ? "visible" : "hidden:" + reason;
+            boolean show = reason == null;
+            scene.show(show);
+            if (show) {
+                reclaimOriginalNavSpace();
+                scene.syncSelection();
+            }
+            if (!state.equals(lastReason)) {
+                lastReason = state;
+                DevFileLog.note("screen=" + state
+                        + "; fragments=" + DevScreenDetector.fragmentNames(activity));
+            }
+            long now = System.currentTimeMillis();
+            if (now - lastFragmentLog > 8000) {
+                lastFragmentLog = now;
+                DevFileLog.note("screen diagnostic " + state
+                        + "; fragments=" + DevScreenDetector.fragmentNames(activity));
+            }
+        }
+
+        /**
+         * Verified real Instagram 452 hierarchy (180px at 1440x3200):
+         * layout_container_main_wrapper
+         *  layout_container_main           bottomMargin=180
+         *  swipeable_tab_view_pager         bottomMargin=180
+         *  tab_bar_shadow                   1px
+         *  tab_bar                          180px (already moved)
+         *
+         * Instagram can restore the original margins after navigation, so
+         * reconcile only these two known views, and only if their margins
+         * equal 0 or the exact native bar height. Unknown layouts are left
+         * untouched. This preserves the stable v0.8 fix.
+         */
+        private void reclaimOriginalNavSpace() {
+            if (scene == null || !"layout_container_main_wrapper".equals(
+                    DevGlassUi.resourceName(scene.sourceParent))) return;
+            ViewGroup parent = scene.sourceParent;
+            View main = null, pager = null, shadow = null, bottomSearch = null;
+            for (int i = 0; i < parent.getChildCount(); i++) {
+                View child = parent.getChildAt(i);
+                String id = DevGlassUi.resourceName(child);
+                if ("layout_container_main".equals(id)) main = child;
+                else if ("swipeable_tab_view_pager".equals(id)) pager = child;
+                else if ("tab_bar_shadow".equals(id)) shadow = child;
+                else if ("layout_bottom_searchbar".equals(id)) bottomSearch = child;
+            }
+            if (!validMargin(main, scene.barHeight)
+                    || !validMargin(pager, scene.barHeight)) {
+                return;
+            }
+            boolean adjusted = removeReservedMargin(main, scene.barHeight);
+            adjusted |= removeReservedMargin(pager, scene.barHeight);
+            if (validMargin(bottomSearch, scene.barHeight)) {
+                adjusted |= removeReservedMargin(bottomSearch, scene.barHeight);
+            }
+            if (shadow != null && shadow.getHeight() <= dp(shadow, 3)
+                    && shadow.getVisibility() == View.VISIBLE) {
+                shadow.setVisibility(View.GONE);
+                adjusted = true;
+                DevFileLog.note("old tab_bar_shadow hidden");
+            }
+            if (adjusted) {
+                parent.requestLayout();
+                DevFileLog.note("fixed reserved bottom margin " + scene.barHeight
+                        + "px -> 0 on native feed/pager");
+            }
+        }
+
+        private static boolean validMargin(View view, int original) {
+            if (view == null) return false;
+            ViewGroup.LayoutParams lp = view.getLayoutParams();
+            if (!(lp instanceof FrameLayout.LayoutParams)) return false;
+            int margin = ((FrameLayout.LayoutParams) lp).bottomMargin;
+            return margin == 0 || margin == original;
+        }
+
+        private static boolean removeReservedMargin(View view, int original) {
+            if (view == null) return false;
+            FrameLayout.LayoutParams lp =
+                    (FrameLayout.LayoutParams) view.getLayoutParams();
+            if (lp.bottomMargin != original) return false;
+            lp.bottomMargin = 0;
+            view.setLayoutParams(lp);
+            return true;
+        }
+
+        private static ViewGroup findVerifiedTabBar(ViewGroup root,
+                                                     int depth, int[] budget) {
+            if (depth > 14 || budget[0] <= 0) return null;
+            for (int i = 0; i < root.getChildCount() && budget[0] > 0; i++) {
+                View child = root.getChildAt(i);
+                budget[0]--;
+                if (!(child instanceof ViewGroup)
+                        || child.getVisibility() != View.VISIBLE) continue;
+                ViewGroup group = (ViewGroup) child;
+                if ("tab_bar".equals(DevGlassUi.resourceName(group))
+                        && group.getChildCount() == 5
+                        && group.getParent() instanceof ViewGroup
+                        && "layout_container_main_wrapper".equals(
+                                DevGlassUi.resourceName((View) group.getParent()))) {
+                    return group;
+                }
+                ViewGroup nested = findVerifiedTabBar(group, depth + 1, budget);
+                if (nested != null) return nested;
+            }
             return null;
         }
-    }
 
-    private static double textureScore(Bitmap bitmap) {
-        int count = 0;
-        double sum = 0.0, sum2 = 0.0;
-        for (int y = 0; y < bitmap.getHeight(); y += Math.max(1, bitmap.getHeight()/7)) {
-            for (int x = 0; x < bitmap.getWidth(); x += Math.max(1, bitmap.getWidth()/11)) {
-                int pixel = bitmap.getPixel(x, y);
-                double luma = .2126 * Color.red(pixel)
-                        + .7152 * Color.green(pixel) + .0722 * Color.blue(pixel);
-                sum += luma;
-                sum2 += luma * luma;
-                count++;
+        private static boolean isDescendant(View child, ViewGroup ancestor) {
+            View current = child;
+            while (current != null) {
+                if (current == ancestor) return true;
+                current = current.getParent() instanceof View
+                        ? (View) current.getParent() : null;
             }
+            return false;
         }
-        if (count == 0) return 0.0;
-        return Math.sqrt(Math.max(0.0, sum2/count - (sum/count)*(sum/count)));
-    }
 
-    private static void fallback(ViewGroup nav) {
-        nav.setPivotX(nav.getWidth() / 2f);
-        nav.setPivotY(nav.getHeight() / 2f);
-        nav.setScaleX(.93f);
-        nav.setTranslationY(-dp(nav, 7));
-    }
-
-    private static boolean descendsFrom(View child, ViewGroup ancestor) {
-        View current = child;
-        while (current != null) {
-            if (current == ancestor) return true;
-            current = current.getParent() instanceof View
-                    ? (View) current.getParent() : null;
+        private static int dp(View v, float value) {
+            return Math.round(v.getResources().getDisplayMetrics().density * value);
         }
-        return false;
-    }
-
-    private static boolean isInsideCollection(ViewGroup group) {
-        View current = group;
-        for (int i = 0; i < 5 && current != null; i++) {
-            String name = current.getClass().getName();
-            if (name.contains("RecyclerView") || name.contains("ViewPager")) return true;
-            current = current.getParent() instanceof View
-                    ? (View) current.getParent() : null;
-        }
-        return false;
-    }
-
-    private static int dp(View view, float size) {
-        return Math.round(size * view.getResources().getDisplayMetrics().density);
-    }
-
-    private static ViewGroup findCandidate(ViewGroup root, int screenHeight, int depth) {
-        if (depth > 13) return null;
-        ViewGroup result = null;
-        for (int i = 0; i < root.getChildCount(); i++) {
-            View child = root.getChildAt(i);
-            if (child.getVisibility() != View.VISIBLE || !(child instanceof ViewGroup)) continue;
-            ViewGroup group = (ViewGroup) child;
-            if (isNavCandidate(group, screenHeight)) result = group;
-            ViewGroup nested = findCandidate(group, screenHeight, depth + 1);
-            if (nested != null) result = nested;
-        }
-        return result;
-    }
-
-    private static boolean isNavCandidate(ViewGroup group, int screenHeight) {
-        if (group.getWidth() < 160 || group.getHeight() <= 0) return false;
-        int[] pos = new int[2];
-        group.getLocationOnScreen(pos);
-        float density = group.getResources().getDisplayMetrics().density;
-        if (pos[1] < screenHeight * .72f
-                || group.getHeight() > 105 * density
-                || group.getHeight() < 34 * density) return false;
-        int children = group.getChildCount();
-        if (children < 3 || children > 8) return false;
-        int match = 0;
-        for (int i = 0; i < children; i++) {
-            View child = group.getChildAt(i);
-            String id = "";
-            try {
-                if (child.getId() != View.NO_ID)
-                    id = child.getResources().getResourceEntryName(child.getId());
-            } catch (Throwable ignored) { }
-            CharSequence label = child.getContentDescription();
-            String key = ((label == null ? "" : label.toString()) + " " + id)
-                    .toLowerCase(Locale.ROOT);
-            if (key.contains("home") || key.contains("search") || key.contains("reels")
-                    || key.contains("profile") || key.contains("explore")
-                    || key.contains("beranda") || key.contains("cari")
-                    || key.contains("profil")) match++;
-        }
-        return match >= 3;
     }
 }
