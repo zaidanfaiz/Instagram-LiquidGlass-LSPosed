@@ -93,6 +93,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         private boolean resumed;
         private long lastMissingLog;
         private long lastFragmentLog;
+        private long lastSafeViewportCheck;
         private String lastReason = "initial";
 
         private final Runnable poll = new Runnable() {
@@ -227,7 +228,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // Never toggle it when a Reel comment overlay gains/loses focus.
             if (edgeSpace != null) edgeSpace.setActive(true);
             reclaimOriginalNavSpace();
-            DevFileLog.note("r12 playback safety: main video geometry frozen after initial install");
+            DevFileLog.note("r13 viewport: reserve 180px removed; 60px root guarded; no window/immersive flag overrides");
+            DevViewportGuard.note(activity, scene, "install");
             // Diagnostic optical baseline: no captured feed/video bitmap may
             // be painted onto the shell. The r7/r8 screenshots stayed white
             // EVEN when native tab rendering was alpha=0. This decisively
@@ -257,6 +259,25 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (show) scene.syncSelection();
             // A new native selection can change to Reels during syncSelection.
             if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
+
+            // IG452 sometimes reinstates its 60px root / 180px native tab
+            // reservation after a main-tab transition, leaving a black gap
+            // instead of filling the display. r12 stopped *all* reconciliation
+            // to fix frozen Reels. r13 repairs only when no live video surface
+            // is visible, the user is on a non-Reels main tab and window
+            // focus is stable. No layout manipulation while video is playing.
+            long uptime = android.os.SystemClock.uptimeMillis();
+            if (show && !scene.isReelsActive() && activity.hasWindowFocus()
+                    && uptime - lastSafeViewportCheck >= 6500) {
+                lastSafeViewportCheck = uptime;
+                if (!DevViewportGuard.hasLiveVideo(scene.host)) {
+                    if (edgeSpace != null) edgeSpace.setActive(true);
+                    reclaimOriginalNavSpace();
+                    DevViewportGuard.note(activity, scene, "safe-static-tab");
+                } else {
+                    DevFileLog.note("r13 viewport: deferred, visible video surface");
+                }
+            }
             if (!state.equals(lastReason)) {
                 if (show && frost != null) frost.request(550);
                 lastReason = state;
