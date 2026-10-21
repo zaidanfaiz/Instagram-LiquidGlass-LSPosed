@@ -2,7 +2,7 @@
 
 Thanks for your interest in improving Instagram Liquid Glass.
 
-This is a reverse-engineering-dependent LSPosed module, currently targeted at **Instagram 452.0.0.48.64 on Android 16**. Changes should minimize risk to Instagram's normal UI, account state and Reels video playback.
+This is a reverse-engineering-dependent LSPosed module. **Android 16 (API 36), screen/window 1440×3200, and Instagram 452.0.0.48.64** are documented development test conditions, **not a deliberate Android/Instagram-version lock**. Other devices and app versions may work. Changes should minimize risk to Instagram's normal UI, account state and Reels video playback.
 
 ## Before contributing
 
@@ -11,7 +11,20 @@ This is a reverse-engineering-dependent LSPosed module, currently targeted at **
 - Test with Instagram's own app and LSPosed enabled **only for `com.instagram.android`**.
 - Avoid adding network analytics, injected ad/tracking code, or hooks unrelated to the navbar.
 - Respect the MIT-licensed third-party shader copyright and `THIRD_PARTY_NOTICES.md`.
-- No project-wide license has yet been selected for the original source. Do not assume that publication alone grants redistribution rights.
+- Read the [custom source-available contribution terms](LICENSE). This is **not an unrestricted open-source license**. GitHub-hosted edits/forks for contribution are permitted; independent redistribution, publication of modified APKs, rebranding or mirrors require prior written permission. Public repository access cannot technically stop git cloning or forking.
+
+## Pull request approval and `main` ownership
+
+The project maintainer is **@zaidanfaiz**. Others are welcome to suggest fixes, adapt code in their GitHub-hosted forks for a contribution, and open a pull request, but **only an authorized maintainer can approve merging changes into the official `main` branch**.
+
+Contribution steps:
+
+1. Review the open Issues to avoid duplicate work. Prepare a small, focused patch using GitHub's web editor or other methods permitted by the [license](LICENSE). A public repository can be forked or cloned at the platform level, but **mirroring/rehosting and publishing independent derivatives is not authorized**.
+2. Open a Pull Request to `main`, describing the problem, changes, tests and risks.
+3. Await maintainer review. The maintainer may request changes, reject the PR, or merge it. An opened or even CI-passing PR **does not constitute approval**.
+4. Official releases are published only by the maintainer's authorized workflow.
+
+A repository [CODEOWNERS](.github/CODEOWNERS) file nominates @zaidanfaiz for all paths. **Branch protection is still required** to enforce code-owner review and PR-only merging. The maintainer must configure a GitHub Ruleset for `main` with *Require a pull request before merging*, *Require review from Code Owners*, and appropriate push/merge restrictions. This file alone does not enforce those rules.
 
 ## Development environment
 
