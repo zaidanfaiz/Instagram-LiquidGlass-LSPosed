@@ -6,8 +6,8 @@ android {
         applicationId 'dev.zaidan.igglass'
         minSdk 29
         targetSdk 28
-        versionCode 26
-        versionName '0.1-dev-r17-ordered-page-swipes'
+        versionCode 27
+        versionName '0.1-dev-r18-reels-video-glass'
     }
 }
 dependencies {
