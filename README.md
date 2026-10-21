@@ -2,6 +2,74 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Latest experimental test: **0.1-dev-r15 — fullscreen margin reconciliation + visible frost**
+
+Device feedback after r14: **both the Home feed and Reels still show an
+unwanted bottom gap after navigating tabs, and the pill looks clear rather
+than distinctly blurred**. The user-supplied 22:41 device log proves:
+
+- App/window/decor/content are still **1440x3200**; navigation inset is
+  **zero**. It is not a smaller window or Android not in immersive mode.
+- The r14 hook logs **repeated 60px coordinator margin interceptions**,
+  but NOT a single 180px native feed/pager interception. Thus assuming the
+  intercepted `View.setLayoutParams` path reliably protects both native
+  reservations was unfounded.
+- The r14 screenshot sampling reports a valid **305x41px 58%/5dp sample**.
+  Its pending capture timer was reset for every scroll event, leaving the
+  effect absent during continuous feed scrolling.
+
+### Changes
+
+1. **Native pager margins:** while on a visible, focused NON-Reels main
+   tab, verify and repair precisely those previously confirmed
+   `layout_container_main` / `swipeable_tab_view_pager` / optional
+   `layout_bottom_searchbar` **180px** margins if IG reapplies them.
+   Poll no faster than 1.1 seconds; change nothing if margins are already
+   zero or unexpected. A partially restored wrapper (one holder zero,
+   the other 180px) no longer skips the entire fix. Never relayout while
+   Reels is selected or an opened chat/comments/modal hides the glass.
+   The 60px root coordinator remains covered by the proactive margin hook.
+2. **Observed fullscreen dimensions:** periodic `r15 feed geometry`
+   messages now record the native wrapper height and each known pager's
+   measured height/bottomMargin, not only the 1440x3200 system bounds.
+   This can identify the exact culprit if the gap persists.
+3. **Visible content-aware blur on nonvideo tabs:** sample increased from
+   23% to **30%** of the narrow glass strip, blur RenderEffect radius from
+   5dp to **14dp**, and real backdrop contribution from 58% to **84%**.
+   New samples use a **750ms minimum interval** and pending captures
+   are no longer repeatedly postponed by scroll events. Old images fade
+   during scroll and are replaced with a new verified background.
+   Flat/blank captures and slow operations still fall back to the
+   known-good transparent rim.
+4. Reels **NEVER receives** live video sampling; no new
+   SurfaceView/TextureView capture, video relayout, player hooks or
+   immersive window flags. The r12 video playback stabilization,
+   separate Search button, custom icon sizes, and r14 gesture shield
+   remain intact.
+
+### Device acceptance (this has NOT been visually verified yet)
+
+- Home → Reels → DM inbox → own profile → Home, then scroll the feed.
+  Confirm bottom of the content is not padded to make room for Instagram's
+  old 180px tab bar.
+- On static colorful photos, the glass should visibly soften the image
+  behind it. During sustained scroll, it should refill rather than remain
+  permanently clear. On Reels it is intentionally clear until a
+  separate video-safe optical compositor is designed and tested.
+- Reels -> open/close comments 3x: verify audio and picture remain in sync,
+  and dragging on the capsule does not activate Reel fast-forward.
+- If any check fails, send the latest `Downloads/IGGlass-0.1-dev-*.txt`,
+  especially `r15 fixed reserved bottom margin`,
+  `r15 feed geometry` and `r15 glass-frost sample`, and one screenshot
+  after the tab transition.
+- Disable the LSPosed module and force-stop Instagram to rollback without
+  clearing personal app data.
+
+**Limitation:** Android `RenderEffect` on our sampled View is a delayed
+frosted-background approximation. There is no verified live
+system-compositor refractive blur of SurfaceView Reels and no claim of
+pixel-identical iOS 27 Liquid Glass.
+
 ## Latest engineering test: **0.1-dev-r14 — gesture isolation + proactive fullscreen margins**
 
 Based on the user's Android 16 screenshots and the two logs from
