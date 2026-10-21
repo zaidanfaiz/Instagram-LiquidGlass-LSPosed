@@ -2,6 +2,46 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## v0.9 — raised split Liquid Glass and Story/Profile auto-hide (beta)
+
+Target: **Instagram 452.0.0.48.64 / Android 16**. Builds on the device-tested
+v0.8 fix that reclaimed the original 180px Instagram navbar reservation.
+
+- Raises the two floating controls from **12dp to 30dp** above the bottom.
+- Keeps four **original Instagram buttons** (Home / Reels / Share / Profile)
+  inside the left glass pill, with a glowing sliding selection lens.
+- Relocates Instagram's **original Search tab** into its own circular glass
+  control on the right. This preserves original listeners instead of replacing
+  them with simulated navigation. If the verified five-button hierarchy cannot
+  be found, safely retains one pill rather than detaching arbitrary views.
+- Independently samples/softens the background behind both glass controls.
+- **Auto-hides both controls** when Instagram hides the original tab view,
+  or when the foreground screen is recognized as a Story/ReelViewer or user
+  profile fragment/activity; shows them again on return to the feed.
+- Leaves the tested 180px feed-margin fix intact and does not touch Android's
+  system navigation bar or permanently hide content views.
+
+### Test checklist
+
+1. Download a **successful v0.9 Build LSPosed APK** run and install its
+   `app-debug.apk`; keep LSPosed scoped only to Instagram.
+2. Force-stop/reopen Instagram. Confirm you see a **four-icon left pill**
+   and an **independent Search circle on the right**, raised from the bottom.
+3. Tap each main icon and the separate Search circle. Verify selection lens,
+   tab navigation, icons/badges, long press, scrolling and touches.
+4. Open a **Story/status**, return to the feed; open **your profile and another
+   user's profile**, then return. Both pills should disappear on those pages
+   and reappear on the home feed.
+5. If either page keeps the floating bar, send screenshot + LSPosed logs with
+   `IGGlass-SCREEN:` and `IGGlass v0.9:` lines. These log only screen class
+   names, not usernames/content.
+
+**Compatibility note:** GitHub Actions success verifies Java compilation,
+not whether Instagram's internal fragment names matched the device. This beta
+may need one additional runtime log cycle for Story/profile detection.
+If navigation becomes unusable, disable the module in LSPosed, force-stop
+Instagram and re-enable v0.8.
+
 ## v0.8 — targeted 180px navbar-space fix (beta)
 
 The runtime logs from Instagram 452.0.0.48.64 show that the original
