@@ -2,6 +2,60 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current test: **0.1-dev-r2 dark glass + slide** (Android 16 / Instagram 452)
+
+This patch responds to the user's **real 0.1-dev screenshot and Downloads
+log**: capsules were opaque white on Instagram's dark theme, the main shell
+was clipped against the left edge, the selected lens could not be dragged,
+and a dark gap remained below the content.
+
+- **Use Instagram's native `tab_bar` background** to determine the glass
+  palette, not Android system night mode. Verified old IG background was
+  `#FF0C1014`; the resulting glass is **dark and translucent**, not solid
+  white.
+- Raise the two pills **44dp above the bottom** and use
+  `Gravity.BOTTOM | Gravity.LEFT` for the main shell instead of
+  centered `MATCH_PARENT` with asymmetric margins. Search remains a
+  separate right-side circular control.
+- **Drag the active lens horizontally** across the left pill.
+  The parent only intercepts after a genuine horizontal gesture; regular
+  taps and vertical scrolling still use Instagram's own handlers.
+  Releasing a drag activates the underlying original tab, preferring native
+  `performClick()` and falling back to dispatching a normal touch pair to
+  that real button. The low-overhead AGSL ripple remains enabled.
+- In addition to the working **180px native navbar reservation fix**, try
+  to reclaim Instagram's independently measured **60px root coordinator
+  gap** (at 1440x3200) *only* when the exact root view IDs, small margin
+  size and transparent Android navigation bar are verified. This adjustment
+  is reversible and restored outside the main feed.
+- Downloads auto-diagnostics remain active with entries for
+  `native tab_bar background`, `theme=DARK`, `gesture:`,
+  `pill geometry`, and `edge-space:`.
+
+**Important:** the shader now adds GPU-rendered, reactive highlights and a
+translucent dark surface; it is **not** live refraction or live background
+blur. The original repeated full-screen content capture, which caused
+stutters in v0.9, remains disabled. Actual appearance and native tab
+dispatch must be tested on the phone; a successful build is not a UX test.
+
+### Test / rollback
+
+1. Download the latest **successful** Build LSPosed APK from GitHub Actions
+   for the `0.1-dev-r2-dark-glass` version and install its `app-debug.apk`.
+2. Keep LSPosed scoped to Instagram, force-stop Instagram, reopen it.
+3. Test normal taps on all five tabs, then **drag the highlighted lens**
+   between different icons in the left pill. Test vertical feed scrolling
+   and swiping into Direct messages without slowing down.
+4. Open Story/status and your profile; return using the native Back gesture.
+   Verify the floating pills are hidden on supported screens.
+5. Locate `IGGlass-0.1-dev-*.txt` in **Downloads**, and share it with a
+   screenshot if the dark region remains. Check the log for
+   `edge-space: reclaimed`, `gesture: ... END`, and `theme=DARK`.
+   The file name uses the original development series label intentionally.
+6. If touch/navigation is broken, disable this module in LSPosed and
+   force-stop Instagram. You can revert to the successful v0.8 artifact
+   (commit `97504f480f809b87da90eb0802c347efd78522cd`).
+
 ## Current: **0.1-dev clean restart** (October 2026)
 
 Rebuilt from scratch after v0.9 testing showed black regions, stuttering
