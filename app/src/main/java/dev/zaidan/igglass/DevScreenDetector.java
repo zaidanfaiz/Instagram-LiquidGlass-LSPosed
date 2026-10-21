@@ -18,9 +18,16 @@ final class DevScreenDetector {
     private static boolean fragmentErrorLogged;
     private DevScreenDetector() {}
 
-    static String hiddenBecause(Activity activity, View nav) {
+    static String hiddenBecause(Activity activity, View nav, View formerParent) {
         if (activity.isFinishing() || activity.isDestroyed()) return "closing";
         if (!activity.hasWindowFocus()) return "unfocused";
+        // Because the real tab_bar was relocated into a new top-level shell,
+        // it no longer inherits visibility from its original IG parent.
+        // Respect Instagram hiding that original navigation container.
+        if (formerParent != null && (!formerParent.isShown()
+                || formerParent.getAlpha() < .1f)) {
+            return "instagram-parent-hidden";
+        }
         if (nav.getVisibility() != View.VISIBLE || nav.getAlpha() < .10f) {
             return "native-tab-hidden";
         }
