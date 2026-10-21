@@ -28,6 +28,10 @@ build also tries to align **horizontal PAGE swipes** with that order.
    A photo carousel swipe that does not change native tabs is ignored.
    IG native order remains `0,1,2,3,4` internally, so a transition from
    DM to Profile can briefly visit native Search before correction.
+   Native selection is checked from selected tab Views first; when Instagram
+   uses custom drawing with no selected flags, the module **reads** the
+   verified `swipeable_tab_view_pager.getCurrentItem()` if available.
+   It NEVER invokes `setCurrentItem` or rearranges an IG pager adapter.
 3. **Profile → Search at native boundary.** A substantial left swipe on
    the top portion of the user's **own profile header** (not the grid or
    other people's profiles) navigates via the real Search tab. This
