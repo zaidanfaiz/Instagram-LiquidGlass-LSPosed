@@ -2,6 +2,66 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current: **0.1-dev clean restart** (October 2026)
+
+Rebuilt from scratch after v0.9 testing showed black regions, stuttering
+during swipes and lost glass state after navigation. This is an experimental
+development version, **not** a proven liquid refraction shader.
+
+- Retains **the real Instagram 452 tab buttons**, separate Search circle and
+  a four-button main pill. Glass surfaces now use GPU-friendly translucent
+  gradients, highlight layers and a moving selection lens.
+- Raises navbar by **26dp**; no extra full-window bitmap render, Canvas host
+  screenshots or double 12fps blur sampling. This should reduce jank, at the
+  expense of true content-backdrop blur/refraction.
+- Restores the device-tested v0.8 targeted **180px bottom margin recovery**,
+  and re-applies it if Instagram reintroduces the reservation after switching
+  screens. Keeps the legacy 1px `tab_bar_shadow` hidden.
+- Does not swallow gestures or invent replacement navigation actions:
+  the native Instagram tab views keep their click handlers.
+- Watches Instagram's own tab visibility and large Story/profile fragments,
+  hiding both floating glass controls on those screens and showing them on
+  return to the feed.
+- Automatically creates a UTF-8 diagnostic file named
+  **`Download/IGGlass-0.1-dev-YYYYMMDD-HHMMSS.txt`** via Android MediaStore.
+  Android 10+ allows creating app-owned Downloads files without storage-wide
+  permissions; because hooks run inside Instagram, the file is created from
+  its process. Logs contain only view/layout and screen class names, actions
+  by tab index, timings and errors — no post text or account labels.
+  File writes happen off the UI thread and are capped at 512KiB. If
+  MediaStore denies creation, the `IGGlass-DEV: DOWNLOAD LOG ERROR` line
+  appears in LSPosed and there may be no file to share.
+
+### Install and test
+
+1. Open [GitHub Actions](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions),
+   find the newest **successful** `Build LSPosed APK` run on `main` and
+   download `Instagram-LiquidGlass-LSPosed-debug`.
+2. Extract `app-debug.apk`, install/update the module, enable Instagram-only
+   scope in LSPosed and force-stop Instagram. If signing key mismatch prevents
+   an update, uninstall the **module only**, never Instagram.
+3. Test opening Home, Reels, Share, Search circle, Profile; back from Profile;
+   swipe to Direct messages and return; scroll feed and play video; open a
+   Story/status, exit and ensure the floating controls reappear.
+4. Open **Files > Downloads** and find the newly created
+   `IGGlass-0.1-dev-...txt` (one per Instagram process launch). Check it
+   contains `glass installed`, `fixed reserved bottom margin`,
+   `screen=` and tab action lines. Upload it plus a screenshot if anything
+   is broken.
+
+**Known limits:** the effect is optical *glass styling*, not Apple's native
+iOS Liquid Glass physics. Instagram may alter private view hierarchies or
+ignore file creation via MediaStore; runtime tests remain essential.
+Other LSPosed modules such as InstaEclipse can affect navigation behavior.
+
+### Rollback
+
+The last visually confirmed black-strip fix was **v0.8** (Git commit
+`97504f480f809b87da90eb0802c347efd78522cd`). To compare, use
+its successful GitHub Actions artifact or restore the corresponding source
+commit. Don't install an APK signed with a different debug key without
+uninstalling the old module app first.
+
 ## v0.9 — raised split Liquid Glass and Story/Profile auto-hide (beta)
 
 Target: **Instagram 452.0.0.48.64 / Android 16**. Builds on the device-tested
