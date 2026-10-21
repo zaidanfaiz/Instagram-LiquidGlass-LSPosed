@@ -4,251 +4,207 @@ import android.app.Activity;
 import android.graphics.Rect;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.TextView;
-import java.util.List;
 import java.util.Locale;
-
-import de.robv.android.xposed.XposedHelpers;
+import java.util.WeakHashMap;
 
 /**
- * Profile/detail and Story/status detection. Instagram frequently navigates
- * fragments inside the same MainActivity; lifecycle hooks alone do not work.
- * Only examines fragment class names and screen geometry (no user information).
+ * Instagram 452 uses a proprietary page router, not the standard AndroidX
+ * fragment API. Detect the VISIBLE foreground page from multiple public UI
+ * labels + view IDs, never usernames, posts, input contents or chat messages.
+ *
+ * Policy:
+ *   show: HOME, REELS, SEARCH, own PROFILE, DIRECT INBOX LIST
+ *   hide: opened DM conversation, other person's PROFILE, STORY, unfocused
+ *
+ * Signals are intentionally conservative; ambiguous content preserves the
+ * previous page classification when appropriate. No identities logged.
  */
 final class DevScreenDetector {
-    private static boolean fragmentErrorLogged;
     private DevScreenDetector() {}
+    private enum Page {
+        HOME_OR_REELS, OWN_PROFILE, DIRECT_INBOX, OTHER_PROFILE,
+        DM_CONVERSATION, STORY, UNKNOWN
+    }
+    private static final WeakHashMap<Activity, Page> CURRENT =
+            new WeakHashMap<>();
 
-    static String hiddenBecause(Activity activity, View nav, View formerParent) {
+    static String hiddenBecause(Activity activity, View nav,
+                                View formerParent) {
         if (activity.isFinishing() || activity.isDestroyed()) return "closing";
         if (!activity.hasWindowFocus()) return "unfocused";
-        // Because the real tab_bar was relocated into a new top-level shell,
-        // it no longer inherits visibility from its original IG parent.
-        // Respect Instagram hiding that original navigation container.
-        if (formerParent != null && (!formerParent.isShown()
-                || formerParent.getAlpha() < .1f)) {
-            return "instagram-parent-hidden";
-        }
-        if (nav.getVisibility() != View.VISIBLE || nav.getAlpha() < .10f) {
-            return "native-tab-hidden";
-        }
-        if (!activity.getClass().getName().contains("InstagramMainActivity")) {
+        if (!activity.getClass().getName().contains("InstagramMainActivity"))
             return "secondary-activity";
+
+        Page page = inspect(activity);
+        Page old = CURRENT.put(activity, page);
+        if (old != page) {
+            DevFileLog.note("page routing " + (old == null ? "start" : old)
+                    + " -> " + page);
         }
-        try {
-            Object fm = XposedHelpers.callMethod(activity, "getSupportFragmentManager");
-            String match = scan(fm, activity.getWindow().getDecorView(), 0,
-                    new int[] {72});
-            if (match != null) return match;
-        } catch (Throwable error) {
-            if (!fragmentErrorLogged) {
-                fragmentErrorLogged = true;
-                DevFileLog.note("fragment API inaccessible: "
-                        + error.getClass().getSimpleName());
-            }
-            // Instagram 452 may use a proprietary main page router.
-        }
-        View decor = activity.getWindow().getDecorView();
-        if (decor instanceof ViewGroup) {
-            String viewName = scanViewIds((ViewGroup) decor, decor, 0,
-                    new int[] {700});
-            if (viewName != null) return viewName;
-            String page = screenSignature((ViewGroup) decor);
-            if (page != null) return page;
-        }
+
+        if (page == Page.OWN_PROFILE || page == Page.DIRECT_INBOX)
+            return null;
+        if (page == Page.OTHER_PROFILE) return "other-user-profile";
+        if (page == Page.DM_CONVERSATION) return "dm-conversation-open";
+        if (page == Page.STORY) return "story-viewer";
+        if (formerParent != null
+                && (!formerParent.isShown() || formerParent.getAlpha() < .10f))
+            return "instagram-tab-parent-hidden";
+        if (nav.getVisibility() != View.VISIBLE || nav.getAlpha() < .10f)
+            return "native-tab-hidden";
         return null;
     }
 
     static String fragmentNames(Activity activity) {
-        try {
-            Object fm = XposedHelpers.callMethod(activity, "getSupportFragmentManager");
-            Object fragments = XposedHelpers.callMethod(fm, "getFragments");
-            if (!(fragments instanceof List)) return "(none)";
-            StringBuilder s = new StringBuilder();
-            for (Object f : (List<?>) fragments) {
-                if (f == null || !flag(f, "isVisible")) continue;
-                if (s.length() != 0) s.append(" | ");
-                s.append(f.getClass().getSimpleName());
-                if (s.length() > 240) break;
-            }
-            return s.length() == 0 ? "(none)" : s.toString();
-        } catch (Throwable ignored) {
-            return "(fragment API unavailable)";
-        }
+        Page page = CURRENT.get(activity);
+        return page == null ? "(router not detected)" : "page=" + page;
     }
 
-    private static String scan(Object fm, View decor, int depth, int[] remaining) {
-        if (fm == null || depth > 4 || remaining[0] <= 0) return null;
-        Object list;
-        try {
-            list = XposedHelpers.callMethod(fm, "getFragments");
-        } catch (Throwable ignored) {
-            return null;
+    private static Page inspect(Activity activity) {
+        View root = activity.getWindow().getDecorView();
+        if (!(root instanceof ViewGroup)) return Page.UNKNOWN;
+        Signals v = new Signals(root.getHeight());
+        inspectChildren((ViewGroup) root, 0, new int[] {5000}, v);
+        Page page = choose(v);
+        // Only fixed, public UI marker COUNTS are logged. Never actual labels,
+        // usernames, avatars, message body or input text.
+        if (page == Page.UNKNOWN) {
+            return Page.HOME_OR_REELS;
         }
-        if (!(list instanceof List)) return null;
-        for (Object f : (List<?>) list) {
-            if (f == null || --remaining[0] <= 0) break;
-            if (!flag(f, "isVisible") || flag(f, "isHidden")
-                    || !flag(f, "isResumed")) continue;
-            View view;
-            try {
-                Object v = XposedHelpers.callMethod(f, "getView");
-                view = v instanceof View ? (View) v : null;
-            } catch (Throwable ignored) {
-                view = null;
-            }
-            if (view == null || !isLargeForeground(view, decor)) continue;
-            String name = f.getClass().getName().toLowerCase(Locale.ROOT);
-            if (isDetail(name)) return "fragment:" + f.getClass().getSimpleName();
-            try {
-                Object child = XposedHelpers.callMethod(f, "getChildFragmentManager");
-                String result = scan(child, decor, depth + 1, remaining);
-                if (result != null) return result;
-            } catch (Throwable ignored) { }
-        }
-        return null;
+        return page;
     }
 
-    private static boolean isDetail(String name) {
-        // Instagram Stories use ReelViewer; Reels tab uses ClipsViewer.
-        return name.contains("reelviewer") || name.contains("storyviewer")
-                || name.contains("storyplayback")
-                || name.contains("userdetailfragment")
-                || name.contains("userprofilefragment")
-                || name.contains("profilefragment")
-                || name.contains("profiletabfragment");
+    private static final class Signals {
+        final int screenHeight;
+        final int[] own = new int[3]; // edit, share, dashboard
+        final int[] inbox = new int[4]; // main, requests, filter, search/meta
+        int profileStats;
+        boolean followButton;
+        int profileStructure;
+        int dmComposer;
+        int dmThreadHeader;
+        int storyMarker;
+        Signals(int height) { screenHeight = height; }
     }
 
-    private static boolean isLargeForeground(View view, View decor) {
-        if (!view.isShown() || view.getAlpha() < .1f) return false;
-        if (view.getWidth() < decor.getWidth() * .58f
-                || view.getHeight() < decor.getHeight() * .48f) return false;
-        Rect bounds = new Rect();
-        return view.getGlobalVisibleRect(bounds)
-                && bounds.width() > decor.getWidth() * .50f
-                && bounds.height() > decor.getHeight() * .36f;
+    private static Page choose(Signals s) {
+        int ownCount = (s.own[0] > 0 ? 1 : 0)
+                + (s.own[1] > 0 ? 1 : 0)
+                + (s.own[2] > 0 ? 1 : 0);
+        int inboxCount = (s.inbox[0] > 0 ? 1 : 0)
+                + (s.inbox[1] > 0 ? 1 : 0)
+                + (s.inbox[2] > 0 ? 1 : 0)
+                + (s.inbox[3] > 0 ? 1 : 0);
+
+        // Exact "Edit profil" and "Bagikan profil" distinguish the user's
+        // own page from someone else's, even when the avatar/grid is shared.
+        if (ownCount >= 2) return Page.OWN_PROFILE;
+        // Instagram's inbox selection screen has "Utama" + "Permintaan".
+        // Neither an open chat nor a feed uses this combination.
+        if ((s.inbox[0] > 0 && s.inbox[1] > 0)
+                || (inboxCount >= 3 && s.dmComposer == 0))
+            return Page.DIRECT_INBOX;
+        if (s.dmComposer > 0 && (s.dmThreadHeader > 0 || inboxCount < 2))
+            return Page.DM_CONVERSATION;
+        if (s.profileStats >= 2 &&
+                (s.followButton || s.profileStructure >= 2))
+            return Page.OTHER_PROFILE;
+        if (s.storyMarker > 0) return Page.STORY;
+        return Page.UNKNOWN;
     }
 
-    /** Only consider nearly full-page visible navigation containers. */
-    private static String scanViewIds(ViewGroup group, View decor,
-                                      int depth, int[] budget) {
-        if (depth > 17 || budget[0] <= 0) return null;
-        for (int i = 0; i < group.getChildCount() && budget[0] > 0; i++) {
-            View v = group.getChildAt(i);
-            budget[0]--;
-            if (v.getVisibility() != View.VISIBLE || v.getAlpha() < .10f
-                    || v.getWidth() <= 0 || v.getHeight() <= 0) continue;
-            String id = DevGlassUi.resourceName(v).toLowerCase(Locale.ROOT);
-            boolean special = id.contains("story_viewer")
-                    || id.contains("reel_viewer")
-                    || id.contains("user_profile_fragment")
-                    || id.contains("profile_fragment")
-                    || id.contains("profile_tab_content")
-                    || id.contains("user_profile_container");
-            if (special && isLargeForeground(v, decor)) {
-                return "view:" + id;
-            }
-            if (v instanceof ViewGroup) {
-                String found = scanViewIds((ViewGroup) v, decor,
-                        depth + 1, budget);
-                if (found != null) return found;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Instagram 452 does not expose a standard support fragment manager.
-     * Detect the visible page from non-sensitive resource entry names only.
-     * Require multiple independent markers to avoid hiding feed/Reels when
-     * an embedded recommendation tile also mentions "profile".
-     */
-    private static String screenSignature(ViewGroup decor) {
-        int[] found = new int[12]; // 5 resource markers + fixed Instagram UI label signatures
-        StringBuilder report = new StringBuilder();
-        collectSignature(decor, 0, new int[] {1250}, found, report);
-        boolean profile = (found[0] > 0 && (found[1] > 0 || found[2] > 0))
-                || (found[1] > 0 && found[2] > 0)
-                || ((found[5] + found[6] + found[7]) >= 2);
-        boolean inbox = (found[3] > 0 && found[4] > 0)
-                || ((found[8] + found[9] + found[10] + found[11]) >= 2);
-        if (inbox) {
-            DevFileLog.note("screen signature direct inbox: " + report);
-            return "native-direct-inbox";
-        }
-        if (profile) {
-            DevFileLog.note("screen signature profile detail: " + report);
-            return "native-profile-detail";
-        }
-        return null;
-    }
-
-    private static void collectSignature(ViewGroup group, int depth,
-                                          int[] budget, int[] found,
-                                          StringBuilder report) {
-        if (depth > 17 || budget[0] <= 0) return;
-        for (int i = 0; i < group.getChildCount() && budget[0] > 0; i++) {
+    private static void inspectChildren(ViewGroup group, int depth,
+                                        int[] remaining, Signals found) {
+        if (depth > 20 || remaining[0] <= 0) return;
+        for (int i=0; i<group.getChildCount() && remaining[0]>0; i++) {
             View child = group.getChildAt(i);
-            budget[0]--;
-            if (!child.isShown() || child.getAlpha() < .1f
-                    || child.getWidth() == 0 || child.getHeight() == 0) continue;
-            String key = DevGlassUi.resourceName(child)
+            remaining[0]--;
+            if (!child.isShown() || child.getAlpha() < .10f
+                    || child.getWidth() == 0 || child.getHeight() == 0)
+                continue;
+            String id = DevGlassUi.resourceName(child)
                     .toLowerCase(Locale.ROOT);
-            int category = -1;
-            if (key.contains("profile_header")
-                    || key.contains("user_profile_header")) category = 0;
-            else if (key.contains("profile_grid")
-                    || key.contains("profile_tab_content")
-                    || key.contains("profile_media_grid")) category = 1;
-            else if (key.contains("edit_profile")
-                    || key.contains("profile_edit_button")) category = 2;
-            else if (key.contains("direct_inbox")
-                    || key.contains("direct_thread_list")
-                    || key.contains("direct_message_list")) category = 3;
-            else if (key.contains("inbox_tab")
-                    || key.contains("direct_inbox_header")
-                    || key.contains("direct_inbox_list")
-                    || key.contains("message_inbox")) category = 4;
-            // Only compare against fixed, public Instagram UI labels; never
-            // store message text, handles or profile descriptions in logs.
-            // Require markers near the header to avoid feed caption matches.
-            if (child instanceof TextView) {
-                CharSequence displayed = ((TextView) child).getText();
-                // Ignore long/private text; only tiny fixed UI labels.
-                if (displayed != null && displayed.length() <= 44) {
-                String label = displayed.toString().trim().toLowerCase(Locale.ROOT);
-                int[] loc = new int[2];
-                child.getLocationOnScreen(loc);
-                if (loc[1] >= 0 && loc[1] < group.getRootView().getHeight() * .60f) {
-                    if ("edit profil".equals(label)) found[5]++;
-                    else if ("bagikan profil".equals(label)) found[6]++;
-                    else if ("dasbor anda".equals(label)) found[7]++;
-                    else if ("filter".equals(label)) found[8]++;
-                    else if ("utama".equals(label)) found[9]++;
-                    else if ("permintaan".equals(label)) found[10]++;
-                    else if (label.contains("cari atau tanya meta ai")) found[11]++;
+            classifyResource(id, child, found);
+            if (child instanceof EditText) {
+                // Read only the INPUT HINT; never read any typed message.
+                CharSequence hint = ((EditText) child).getHint();
+                if (hint != null && hint.length() <= 50) {
+                    String value = hint.toString().trim().toLowerCase(Locale.ROOT);
+                    if (value.equals("pesan") || value.equals("message")
+                            || value.equals("kirim pesan")
+                            || value.equals("tulis pesan")
+                            || value.equals("message...") || value.equals("pesan..."))
+                        found.dmComposer++;
                 }
+            } else if (child instanceof TextView) {
+                CharSequence shown = ((TextView) child).getText();
+                if (shown != null && shown.length() > 0 && shown.length() <= 36) {
+                    // Guard tiny UI text matching by visibility and position.
+                    Rect visible = new Rect();
+                    if (child.getGlobalVisibleRect(visible)
+                            && visible.height() > 0
+                            && visible.top < found.screenHeight * .80f) {
+                        classifyLabel(shown.toString().trim()
+                                .toLowerCase(Locale.ROOT), found);
+                    }
                 }
             }
-            if (category >= 0) {
-                found[category]++;
-                if (report.length() < 170) {
-                    if (report.length() != 0) report.append(",");
-                    report.append(key);
-                }
-            }
-            if (child instanceof ViewGroup) {
-                collectSignature((ViewGroup) child, depth + 1,
-                        budget, found, report);
-            }
+            if (child instanceof ViewGroup)
+                inspectChildren((ViewGroup) child, depth+1, remaining, found);
         }
     }
 
-    private static boolean flag(Object object, String method) {
-        try {
-            return Boolean.TRUE.equals(XposedHelpers.callMethod(object, method));
-        } catch (Throwable ignored) {
-            return false;
+    private static void classifyResource(String id, View v, Signals f) {
+        if (id.isEmpty()) return;
+        if (id.contains("edit_profile") || id.contains("profile_edit_button"))
+            f.own[0]++;
+        if (id.contains("share_profile") || id.contains("profile_share_button"))
+            f.own[1]++;
+        if (id.contains("professional_dashboard") || id.contains("profile_dashboard"))
+            f.own[2]++;
+        if (id.contains("direct_inbox_header") || id.contains("inbox_tab"))
+            f.inbox[0]++;
+        if (id.contains("direct_inbox_list") || id.contains("direct_thread_list"))
+            f.inbox[1]++;
+        if (id.contains("inbox_filter")) f.inbox[2]++;
+        if (id.contains("direct_inbox_search")) f.inbox[3]++;
+        if (id.contains("user_profile_container") || id.contains("profile_media_grid"))
+            f.profileStructure++;
+        if ((id.contains("message_composer") || id.contains("thread_composer")
+                || id.contains("thread_input") || id.contains("chat_input"))
+                && v.getHeight() < f.screenHeight * .30f) f.dmComposer++;
+        if (id.contains("direct_thread_header") || id.contains("chat_thread_header")
+                || id.contains("conversation_header")) f.dmThreadHeader++;
+        // Do NOT treat generic "reel_viewer" as a Story; Reels is allowed.
+        if (id.contains("story_viewer") || id.contains("story_playback")
+                || id.contains("stories_viewer") || id.contains("story_reel_viewer")) {
+            if (v.getHeight() > f.screenHeight * .55f) f.storyMarker++;
         }
+    }
+
+    private static void classifyLabel(String label, Signals f) {
+        if (label.equals("edit profil") || label.equals("edit profile")) f.own[0]++;
+        else if (label.equals("bagikan profil") || label.equals("share profile"))
+            f.own[1]++;
+        else if (label.equals("dasbor anda") || label.equals("professional dashboard"))
+            f.own[2]++;
+        else if (label.equals("utama") || label.equals("primary")) f.inbox[0]++;
+        else if (label.equals("permintaan") || label.equals("requests")) f.inbox[1]++;
+        else if (label.equals("filter")) f.inbox[2]++;
+        else if (label.equals("cari atau tanya meta ai")
+                || label.equals("search or ask meta ai")) f.inbox[3]++;
+        else if (label.endsWith(" postingan") || label.equals("postingan")
+                || label.endsWith(" posts") || label.equals("posts")
+                || label.endsWith(" pengikut") || label.equals("pengikut")
+                || label.endsWith(" followers") || label.equals("followers")
+                || label.endsWith(" mengikuti") || label.equals("mengikuti")
+                || label.endsWith(" following") || label.equals("following"))
+            f.profileStats++;
+        else if (label.equals("ikuti") || label.equals("follow")
+                || label.equals("mengikuti") || label.equals("following")
+                || label.equals("kirim pesan") || label.equals("message"))
+            f.followButton = true;
     }
 }
