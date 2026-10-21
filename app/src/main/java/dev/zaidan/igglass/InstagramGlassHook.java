@@ -282,9 +282,19 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // A new native selection can change to Reels during syncSelection.
             if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
 
-            // r14 DevNativeMarginGuard intercepts IG's exact reserved margin
-            // BEFORE the original layout pass. Do not perform a SECOND
-            // post-layout correction here; that used to disrupt Reels videos.
+            // IG452 may restore an old 180px reservation without invoking
+            // setLayoutParams on the previously watched instances. The r14
+            // intercept successfully catches 60px but the uploaded log
+            // contains ZERO intercepted 180px calls. Reconcile ONLY the
+            // native feed/pager holders after returning to a non-Reels tab.
+            // IMPORTANT: no layout changes on Reels, during comments or when
+            // the Activity is unfocused (the r12 playback fix).
+            long uptime = android.os.SystemClock.uptimeMillis();
+            if (show && !scene.isReelsActive() && activity.hasWindowFocus()
+                    && uptime - lastSafeViewportCheck >= 1100) {
+                lastSafeViewportCheck = uptime;
+                reclaimOriginalNavSpace();
+            }
             if (!state.equals(lastReason)) {
                 if (show && frost != null) frost.request(550);
                 lastReason = state;
@@ -327,12 +337,15 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 else if ("tab_bar_shadow".equals(id)) shadow = child;
                 else if ("layout_bottom_searchbar".equals(id)) bottomSearch = child;
             }
-            if (!validMargin(main, scene.barHeight)
-                    || !validMargin(pager, scene.barHeight)) {
-                return;
-            }
-            boolean adjusted = removeReservedMargin(main, scene.barHeight);
-            adjusted |= removeReservedMargin(pager, scene.barHeight);
+            // A partial transition may leave ONE holder at 180px and the
+            // other at zero; do not abort the whole fix in this case.
+            // Never touch any holder with an unexpected custom margin.
+            boolean validMain = validMargin(main, scene.barHeight);
+            boolean validPager = validMargin(pager, scene.barHeight);
+            if (!validMain && !validPager) return;
+            boolean adjusted = validMain
+                    && removeReservedMargin(main, scene.barHeight);
+            if (validPager) adjusted |= removeReservedMargin(pager, scene.barHeight);
             if (validMargin(bottomSearch, scene.barHeight)) {
                 adjusted |= removeReservedMargin(bottomSearch, scene.barHeight);
             }
@@ -345,14 +358,15 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // Register only the concrete VERIFIED Instagram tab-reservation
             // holders. Their future setLayoutParams(180px) calls become 0px
             // BEFORE layout, not a second post-navigation corrective pass.
-            DevNativeMarginGuard.watch(main,scene.barHeight);
-            DevNativeMarginGuard.watch(pager,scene.barHeight);
+            if (validMain) DevNativeMarginGuard.watch(main,scene.barHeight);
+            if (validPager) DevNativeMarginGuard.watch(pager,scene.barHeight);
             if(validMargin(bottomSearch,scene.barHeight))
                 DevNativeMarginGuard.watch(bottomSearch,scene.barHeight);
             if (adjusted) {
                 parent.requestLayout();
-                DevFileLog.note("fixed reserved bottom margin " + scene.barHeight
-                        + "px -> 0 on native feed/pager");
+                DevFileLog.note("r15 fixed reserved bottom margin " + scene.barHeight
+                        + "px -> 0 on native feed/pager; selectedReels="
+                        + scene.isReelsActive());
             }
         }
 
