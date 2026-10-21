@@ -2,6 +2,73 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current test build: **0.1-dev-r4 refractive glass concept**
+
+This revision is guided directly by the supplied Instagram screenshots and
+the **translucent silver iOS 26 / Dribbble concept image**. It does not
+reproduce a proprietary Apple shader or asset; it implements an independent
+Android approximation using cached background imagery and runtime shaders.
+
+### Why v0.1-dev-r3 looked wrong
+
+- The `ImageView` at the bottom of each pill used a high-alpha bitmap of
+  Instagram content. A bright frame could paint the **entire search circle
+  white**, hiding the search icon. The pills changed between nearly black and
+  nearly white based on the content, instead of looking like one coherent
+  silver glass material.
+- The screen samples themselves completed in ~0–5ms in the supplied logs,
+  and drag-to-select events reported handled native clicks. This isolated
+  the immediate problem to the **visual composition and contrast**, not
+  an app-wide download or broken tab event handler.
+- Actual iOS compositor backdrop blur/refraction is not exposed to LSPosed
+  inside another Android app. There are limitations with SurfaceView video
+  content even when CPU snapshot sampling succeeds.
+
+### r4 visual layers, bottom to top
+
+1. A **neutral smoke/silver translucent capsule** with a consistent palette
+   shared by the four-tab pill and separate circular Search.
+2. A **texture-aware, low-alpha refracted content snapshot**. Android AGSL
+   bends the cached sample near the capsule edge; a small GPU RenderEffect
+   softens only this background. Bright or uniform backgrounds contribute
+   much less opacity to prevent white-out. A slow capture disables refresh.
+3. A light glossy film and a GPU animated shimmer/ripple on touch.
+4. A newly implemented **white-blue specular rim** with a high-gloss upper lip,
+   plus the animated oval selection lens.
+5. The **real Instagram tab icon Views on top**, retaining Instagram's native
+   tab behavior and badges.
+
+Additional behavior: 52dp bottom clearance, native horizontal drag-to-select
+on the main pill, the separate right Search circle, targeted 180px feed-margin
+fix and guarded 60px app-owned root gap fix. The floating overlays also
+respect when Instagram hides its original navigation parent (for Story
+and other screens). Existing fragment/view-ID detection remains experimental.
+
+### Test and log collection
+
+1. Install the latest successful Build LSPosed APK for version
+   `0.1-dev-r4-refractive-glass`. Keep LSPosed scope to Instagram; force-stop
+   before reopening.
+2. Compare on **Home (bright feed/photo)** and **Reels (dark video)**:
+   both pills should stay smoky/silver and icons legible, never turn opaque
+   white. Compare the selected lens and glossy edge to the concept.
+3. Check Search (circle at right), swipe the selected lens across the four
+   native buttons, normal taps, long presses and scroll/DM gestures.
+4. Open Story/status and profile detail; both shells should hide and return
+   on navigation back. If they don't, report the precise screen.
+5. Open **Downloads** and attach `IGGlass-0.1-dev-*.txt` after reproducing.
+   In addition to previous entries, r4 logs
+   `glass material luma=... texture=... blend=...`,
+   `glass refraction fallback` or `refractive draw fallback` when AGSL
+   cannot render, and `screen=hidden:instagram-parent-hidden` when relevant.
+
+### Limits
+
+This is **not pixel-identical iOS 26 Liquid Glass**, and it is not real-time
+compositor access to Instagram's SurfaceView/Reels. Snapshot refraction is a
+best-effort optical approximation. Successful GitHub Actions compilation
+does not verify visual output or touch behavior on the user's phone.
+
 ## Current test build: **0.1-dev-r3 frosted glass**
 
 The last device screenshot (0.1-dev) was opaque white because the module
