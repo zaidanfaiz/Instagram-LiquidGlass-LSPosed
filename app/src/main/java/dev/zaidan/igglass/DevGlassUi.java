@@ -293,6 +293,21 @@ final class DevGlassUi {
             lens.setX(Math.max(low, Math.min(desiredX, high)));
         }
 
+        void tapMain(float localX) {
+            // The capsule captured DOWN exclusively to block IG Reels'
+            // hold-to-fast-forward gesture; forward one deliberate tap to
+            // the original Instagram View hierarchy, never synthetic Reel
+            // SurfaceView touches.
+            lastSlideAt = System.currentTimeMillis();
+            int index = indexAt(localX);
+            selectMain(index, true);
+            View destination = nav.getChildAt(index);
+            boolean activated = clickRealTab(destination, 0);
+            if (!activated) activated = dispatchOriginalTouch(destination);
+            DevFileLog.note("r14 isolated pill tap index=" + index
+                    + " handled=" + activated);
+        }
+
         void slideEnd(float localX) {
             if (!dragging) return;
             dragging = false;
@@ -485,6 +500,7 @@ final class DevGlassUi {
                 @Override public void onSlideMove(float x) { scene.slideMove(x); }
                 @Override public void onSlideEnd(float x) { scene.slideEnd(x); }
                 @Override public void onSlideCancel() { scene.slideCancel(); }
+                @Override public void onTap(float x) { scene.tapMain(x); }
             });
             main.post(() -> scene.positionLens(false));
             DevFileLog.note("r10 VISUAL ISOLATION: pure transparent shell, only active lens tint");
