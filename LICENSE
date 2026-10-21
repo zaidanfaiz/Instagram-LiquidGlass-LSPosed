@@ -1,0 +1,70 @@
+Instagram Liquid Glass — Source-Available Contribution Terms
+Version 1.0 (2026-10-22)
+
+Copyright (c) 2026 @zaidanfaiz. All rights reserved except as expressly
+permitted below.
+
+These terms cover the ORIGINAL code and documentation authored for
+Instagram-LiquidGlass-LSPosed. They do not revoke or replace licenses granted
+by third parties. In particular, the shader-derived MIT-licensed material
+identified in THIRD_PARTY_NOTICES.md remains available under its original
+MIT license.
+
+1. Viewing and proposing improvements
+   You may view this repository on GitHub. You may edit the code within
+   GitHub and create GitHub-hosted forks and pull requests solely to
+   experiment privately or to propose improvements to this original
+   repository, to the extent permitted by GitHub's Terms of Service.
+   You do not need advance permission merely to submit a pull request.
+
+2. Acceptance into the official project
+   Every modification proposed for the upstream/main branch requires
+   explicit approval and merging by the repository maintainer or another
+   person the maintainer has specifically authorized. Submitting a pull
+   request grants no right to merge, push directly to main, publish an
+   official build, or represent a fork as an official release.
+   The maintainer may accept, edit, or reject contributions.
+
+3. No general redistribution license
+   Except for the GitHub-hosted access/forking rights in Section 1, no
+   permission is granted to mirror, republish, redistribute, sublicense,
+   rebrand or commercially exploit the project's original source code,
+   modified versions or compiled binaries without the copyright holder's
+   prior written permission. The maintainer also asks users not to
+   independently distribute public clones or unofficial APKs.
+
+4. Local cloning and private builds
+   The maintainer does not offer an unrestricted license for independent
+   local clones or derivative distributions of the original project.
+   Request prior written authorization for uses beyond the limited
+   collaboration permission in Section 1. A public GitHub repository
+   cannot technically prevent cloning, downloading or forking. Nothing
+   in these terms overrides rights directly provided by GitHub's
+   Terms of Service or third-party component licenses.
+
+5. Contributed material
+   By submitting a contribution for inclusion in this repository, you
+   represent that you have the rights to contribute it and give the
+   maintainer a nonexclusive, worldwide, royalty-free, perpetual right
+   to use, modify, reproduce and distribute that contribution as part
+   of this project and its official releases, while retaining your
+   own copyright. Do not submit code that you lack permission to
+   contribute, including proprietary Instagram source or assets.
+
+6. No trademark permission
+   This license grants no rights to names, brands, logos or trademarks
+   owned by Instagram/Meta, Apple, LSPosed or other third parties.
+
+7. Warranty
+   THE ORIGINAL PROJECT MATERIAL IS PROVIDED "AS IS", WITHOUT WARRANTY
+   OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING FITNESS FOR A PARTICULAR
+   PURPOSE AND NON-INFRINGEMENT. TO THE MAXIMUM EXTENT PERMITTED BY
+   APPLICABLE LAW, THE MAINTAINER IS NOT LIABLE FOR DAMAGES ARISING
+   FROM USE OF THIS PROJECT.
+
+These are custom, non-OSI-approved source-available terms, NOT an
+open-source license. Legal enforceability varies by jurisdiction; obtain
+independent legal advice if a formal enforceable commercial policy is needed.
+
+Requests for additional permission:
+https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues
