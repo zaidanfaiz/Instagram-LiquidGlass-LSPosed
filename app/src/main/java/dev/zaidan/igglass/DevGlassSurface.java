@@ -54,11 +54,11 @@ final class DevGlassSurface extends View {
         radius = h / 2f;
         if (selectedLens) {
             tint.setShader(new LinearGradient(0f, 0f, w, h,
-                    new int[] {0x65D3DFEA, 0x40BECEDD, 0x58E1E8F0},
+                    new int[] {0x21D3DFEA, 0x16BECEDD, 0x1CE1E8F0},
                     new float[] {0f, .46f, 1f}, Shader.TileMode.CLAMP));
         } else {
             tint.setShader(new LinearGradient(0f, 0f, w, h,
-                    new int[] {0x37CFD9E3, 0x28ABBCCD, 0x32DCE5ED},
+                    new int[] {0x00CFD9E3, 0x00ABBCCD, 0x00DCE5ED},
                     new float[] {0f, .51f, 1f}, Shader.TileMode.CLAMP));
         }
         edge.setShader(new LinearGradient(0, 0, w, h,
@@ -76,8 +76,8 @@ final class DevGlassSurface extends View {
         specular.setShader(new RadialGradient(w * .24f, h * -.07f,
                 Math.max(w * .53f, h),
                 selectedLens
-                    ? new int[] {0x79FFFFFF, 0x22FFFFFF, 0x00FFFFFF}
-                    : new int[] {0x53F5FAFF, 0x10F4FAFF, 0x00FFFFFF},
+                    ? new int[] {0x68FFFFFF, 0x14FFFFFF, 0x00FFFFFF}
+                    : new int[] {0x29F5FAFF, 0x09F4FAFF, 0x00FFFFFF},
                 new float[] {0f, .42f, 1f}, Shader.TileMode.CLAMP));
         lowerShade.setShader(new LinearGradient(0, 0, 0, h,
                 new int[] {0x00B5D8EE, 0x00B5D8EE, 0x42798FA1},
@@ -95,8 +95,9 @@ final class DevGlassSurface extends View {
         float bottom = h - inset;
         float r = Math.max(1, radius - inset);
 
-        // A neutral, clear material: no dark/light Instagram theme decision.
-        canvas.drawRoundRect(left, top, right, bottom, r, r, tint);
+        // REAL CLEAR BASE: intentionally draw NO material body or tint.
+        // The underlying Instagram pixels are left unmodified outside the
+        // narrow specular rim and optional low-alpha SDF edge refraction.
         // Broad top-left reflection gives volume without a white rectangle.
         canvas.drawRoundRect(left, top, right, bottom, r, r, specular);
         // Thin metallic perimeter plus internal refraction-like second line.
