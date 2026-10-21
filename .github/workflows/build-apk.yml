@@ -16,8 +16,10 @@ jobs:
           java-version: '17'
       - name: Install SDK 35
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          SDKMGR=$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          test -n "$SDKMGR"
+          yes | "$SDKMGR" --licenses >/dev/null || true
+          "$SDKMGR" 'platforms;android-35' 'build-tools;35.0.0'
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
