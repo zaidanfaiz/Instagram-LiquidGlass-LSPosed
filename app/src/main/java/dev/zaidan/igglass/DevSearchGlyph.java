@@ -12,6 +12,7 @@ import android.view.View;
  */
 final class DevSearchGlyph extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint outline = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     DevSearchGlyph(Context context) {
         super(context);
@@ -20,6 +21,11 @@ final class DevSearchGlyph extends View {
         paint.setStrokeJoin(Paint.Join.ROUND);
         paint.setColor(0xFFF5FAFF);
         paint.setStrokeWidth(getResources().getDisplayMetrics().density * 2.7f);
+        outline.setStyle(Paint.Style.STROKE);
+        outline.setStrokeCap(Paint.Cap.ROUND);
+        outline.setStrokeJoin(Paint.Join.ROUND);
+        outline.setColor(0xC1111B24);
+        outline.setStrokeWidth(getResources().getDisplayMetrics().density * 5.2f);
         setClickable(false);
         setFocusable(false);
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -31,9 +37,12 @@ final class DevSearchGlyph extends View {
         float density = getResources().getDisplayMetrics().density;
         float cx = getWidth() * .47f, cy = getHeight() * .46f;
         float radius = Math.min(getWidth(), getHeight()) * .205f;
+        canvas.drawCircle(cx, cy, radius, outline);
         canvas.drawCircle(cx, cy, radius, paint);
         float start = radius * .72f;
         float end = radius * 1.53f;
+        canvas.drawLine(cx + start, cy + start,
+                cx + end, cy + end, outline);
         canvas.drawLine(cx + start, cy + start,
                 cx + end, cy + end, paint);
     }
