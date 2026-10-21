@@ -88,6 +88,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         private final View decor;
         private DevGlassUi.Scene scene;
         private DevEdgeSpaceFix.Session edgeSpace;
+        private DevGlassBackdrop frost;
         private boolean running;
         private boolean resumed;
         private long lastMissingLog;
@@ -105,6 +106,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                         if (scene == null) install();
                         else if (!scene.attached()) {
                             DevFileLog.note("native nav tree changed; attempting safe rebind");
+                            if (frost != null) frost.stop();
+                            frost = null;
                             if (edgeSpace != null) edgeSpace.restore();
                             edgeSpace = null;
                             scene.removeAndRestore();
@@ -136,6 +139,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             decor.postDelayed(this::installIfNeeded, 1000);
             decor.postDelayed(this::installIfNeeded, 2200);
             decor.postDelayed(this::sync, 280);
+            if (frost != null) frost.request(680);
         }
 
         void onPause() {
@@ -148,6 +152,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         void onTouch(MotionEvent ev) {
             if (!resumed || scene == null || !scene.attached()) return;
             scene.onTouch(ev);
+            if (frost != null) frost.request(680);
             decor.postDelayed(this::sync, 240);
         }
 
@@ -156,6 +161,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             running = false;
             resumed = false;
             decor.removeCallbacks(poll);
+            if (frost != null) {
+                frost.stop();
+                frost = null;
+            }
             if (edgeSpace != null) {
                 edgeSpace.restore();
                 edgeSpace = null;
@@ -192,6 +201,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (scene == null) return;
             edgeSpace = DevEdgeSpaceFix.inspect(activity, parent);
             reclaimOriginalNavSpace();
+            frost = new DevGlassBackdrop(activity, scene);
+            frost.start();
             DevFileLog.note("0.1-dev active; no repeated full-screen screenshot blur");
             sync();
         }
@@ -208,6 +219,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 scene.syncSelection();
             }
             if (!state.equals(lastReason)) {
+                if (show && frost != null) frost.request(550);
                 lastReason = state;
                 DevFileLog.note("screen=" + state
                         + "; fragments=" + DevScreenDetector.fragmentNames(activity));
