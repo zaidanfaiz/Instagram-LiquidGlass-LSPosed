@@ -3,15 +3,11 @@ package dev.zaidan.igglass;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.RenderEffect;
-import android.graphics.Shader;
-import android.os.Build;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 
 /**
  * Optional, rate-limited frosted snapshot of the content behind BOTH pills.
@@ -29,8 +25,8 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
     private final Activity activity;
     private final DevGlassUi.Scene scene;
     private final FrameLayout host;
-    private final ImageView mainImage;
-    private final ImageView searchImage;
+    private final DevRefractiveBackdrop mainImage;
+    private final DevRefractiveBackdrop searchImage;
     private final Runnable refresh = this::capture;
     private boolean stopped;
     private boolean slowDevice;
@@ -46,19 +42,12 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                 imageFor(activity, scene.searchPill, scene.dark);
     }
 
-    private static ImageView imageFor(Activity activity, FrameLayout shell,
-                                       boolean dark) {
-        ImageView image = new ImageView(activity);
-        image.setClickable(false);
-        image.setFocusable(false);
-        image.setScaleType(ImageView.ScaleType.FIT_XY);
-        image.setImageAlpha(dark ? 155 : 105);
-        if (Build.VERSION.SDK_INT >= 31) {
-            image.setRenderEffect(RenderEffect.createBlurEffect(
-                    Math.round(11f * activity.getResources().getDisplayMetrics().density),
-                    Math.round(11f * activity.getResources().getDisplayMetrics().density),
-                    Shader.TileMode.CLAMP));
-        }
+    private static DevRefractiveBackdrop imageFor(Activity activity,
+                                                   FrameLayout shell,
+                                                   boolean dark) {
+        DevRefractiveBackdrop image = new DevRefractiveBackdrop(activity, dark);
+        // The image stays behind the semi-translucent material, specular rim,
+        // moving selection lens and original Instagram buttons.
         shell.addView(image, 0, new FrameLayout.LayoutParams(-1, -1));
         return image;
     }
@@ -148,11 +137,11 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                 canvas.restoreToCount(checkpoint);
             }
             Bitmap main = section(combined, mainX - sx, mainY - sy, mainW, mainH);
-            if (main != null) mainImage.setImageBitmap(main);
+            if (main != null) mainImage.setSnapshot(main);
             if (searchImage != null) {
                 Bitmap search = section(combined, searchX - sx,
                         searchY - sy, searchW, searchH);
-                if (search != null) searchImage.setImageBitmap(search);
+                if (search != null) searchImage.setSnapshot(search);
             }
             long duration = SystemClock.uptimeMillis() - began;
             if (duration > TOO_SLOW_MS) {
