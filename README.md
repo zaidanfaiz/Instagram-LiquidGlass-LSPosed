@@ -2,6 +2,81 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Latest test: **0.1-dev-r13 — safe fullscreen recovery + optical frost**
+
+Target: Instagram 452.0.0.48.64, Android 16, LSPosed. The r12 device
+feedback **confirms Reels picture + audio continue normally** after comments.
+Two remaining requests are stronger iOS-style liquid-glass blur and Instagram
+no longer filling the screen.
+
+### Fullscreen / content viewport
+
+The r12 log shows Instagram's old **180px bottom tab-bar reservation** being
+removed and a separate app-owned **60px root coordinator gap** being reclaimed
+once at installation. In r12, all subsequent reconciliation was disabled to
+protect Reel video surfaces. Instagram 452 can reset these margins during
+tab/page navigation; that can reintroduce the bottom content gap.
+
+r13 now *checks and repairs* only those same previously verified **60px and
+180px Instagram-owned margins**, at most once every 6.5 seconds while a
+non-Reels main tab is shown **and no large visible SurfaceView/TextureView is
+active**. It never changes layout mid-Reels or during a comment overlay, so
+the r12 frozen-video mitigation remains. If margins are already correct,
+the guard does not cause a relayout. This is a conservative fullscreen/content
+recovery, **not forced Android immersive mode**: the status bar and system
+navigation gestures remain managed by Instagram/Android.
+
+On every safe check, the Downloads logger adds a `viewport [safe-static-tab]`
+line containing decor/content geometry, system navigation/status insets and
+window flags (no personal data). This lets us distinguish an Instagram
+padding regression from an actual Android edge-to-edge/window problem.
+
+### Blur / Liquid Glass
+
+- The original r10 successful **fully transparent glass shell**, narrow
+  reflective rim, compact original Instagram icons and moving active lens
+  remain unchanged.
+- On **static Home/feed content only**, a tiny cached screenshot is drawn
+  behind the glass via Android GPU `RenderEffect`: blur radius **11dp**
+  and **42%** blended actual backdrop pixels. Unlike an opaque white
+  rectangle, this is a blurred version of the sampled content rather than
+  a fixed white/dark material. It only appears after a high-confidence,
+  nonuniform backdrop capture.
+- Old samples are discarded immediately while feed content scrolls, so
+  stale frames cannot remain behind the bar.
+- A real video SurfaceView/TextureView in the capture strip suspends the
+  effect, and a too-slow sample disables it for the session.
+- On **Reels**, the video SurfaceView is never captured, resized or
+  manipulated. The user-confirmed transparent rim-only fallback remains,
+  including when comments open. Do **not** mistake this for iOS's genuine
+  live video compositor blur/refraction; that remains an unimplemented
+  limitation of this safe variant.
+
+### Tests
+
+1. Install the **r13** debug APK from the latest successful `Build LSPosed
+   APK` run. Force-stop Instagram and reopen.
+2. From Home open a static photo. The pill should show a visible but subtle
+   blurry background, still showing the photograph through it.
+3. Swipe quickly between Home, Reels, DM inbox and your own profile. Verify
+   content returns to the **bottom of the display** without a fresh black
+   region, and glass remains in front of content.
+4. On Reels repeatedly open comments and close them (3+ cycles). The navbar
+   should hide during comments, and picture/audio should not freeze. This
+   regression must remain fixed.
+5. Upload the latest `Download/IGGlass-0.1-dev-*.txt` and one screenshot
+   showing any remaining not-fullscreen area. Compare
+   `viewport [install]`, `viewport [safe-static-tab]`, system insets,
+   `edge-space:` and `fixed reserved bottom margin`.
+6. If the app still doesn't fill the screen, **do not enable forced immersive
+   flags blindly**: first use those measurements and the screenshot to
+   distinguish Android navigation-bar safe area, Instagram layout padding,
+   and video letterboxing.
+
+The shader libraries researched for later refraction remain documented in
+`THIRD_PARTY_NOTICES.md`. This build intentionally prioritizes video
+stability over real-time video glass to avoid regressions.
+
 ## Latest experimental build: **0.1-dev-r12 — Reels comments video safety + subtle frosted glass**
 
 The reported r11 Android 16 / Instagram 452 bug: a Reel video plays correctly,
