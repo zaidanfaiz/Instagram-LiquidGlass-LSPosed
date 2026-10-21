@@ -119,7 +119,11 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 } catch (Throwable e) {
                     DevFileLog.note("poll error " + e.getClass().getSimpleName());
                 }
-                if (running) decor.postDelayed(this, 500);
+                // Reels video should not be traversed/reclassified 2x per
+                // second; touch-up also queues a faster route refresh (240ms)
+                // for opening or dismissing the comment sheet.
+                if (running) decor.postDelayed(this,
+                        scene != null && scene.isReelsActive() ? 850 : 700);
             }
         };
 
