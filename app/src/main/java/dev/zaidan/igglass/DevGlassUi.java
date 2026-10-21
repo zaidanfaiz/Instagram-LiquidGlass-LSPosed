@@ -532,16 +532,9 @@ final class DevGlassUi {
         DevGlassSurface smoked = new DevGlassSurface(activity, false);
         shell.addView(smoked, new FrameLayout.LayoutParams(-1, -1));
 
-        // The reflection is deliberately faint, so it never creates a
-        // solid white overlay over the real Instagram icons.
-        View shine = new View(activity);
-        GradientDrawable gloss = new GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x21FFFFFF, 0x09FFFFFF, 0x00FFFFFF});
-        gloss.setCornerRadius(height / 2f);
-        shine.setBackground(gloss);
-        shine.setClickable(false);
-        shell.addView(shine, new FrameLayout.LayoutParams(-1, -1));
+        // Deliberately NO translucent full-pill ImageView or gradient:
+        // images/solid source graphics led to milky-white scroll regressions.
+        // Narrow rims (DevGlassSurface) are the entire passive material.
 
         DevLiquidFx ripple = new DevLiquidFx(activity);
         shell.addView(ripple, new FrameLayout.LayoutParams(-1, -1));
