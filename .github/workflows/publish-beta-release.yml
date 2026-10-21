@@ -44,15 +44,20 @@ jobs:
           set -euo pipefail
           # An internal analysis release contains the ORIGINAL Instagram
           # 452 app APK. It MUST NOT be public if the repository opens.
-          if gh release view instagram-452-analysis -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          # GitHub changes an existing release to an "untagged-..." web
+          # URL when it becomes draft; /releases/tags/TAG may then return
+          # 404. The stable REST numeric release ID is reliable instead.
+          research_id=419376513
+          draft="$(gh api "/repos/$GITHUB_REPOSITORY/releases/$research_id" --jq '.draft')"
+          if [[ "$draft" != "true" ]]; then
             gh release edit instagram-452-analysis --draft -R "$GITHUB_REPOSITORY"
-            draft="$(gh api "/repos/$GITHUB_REPOSITORY/releases/tags/instagram-452-analysis" --jq '.draft')"
-            if [[ "$draft" != "true" ]]; then
-              echo "::error::The third-party APK research release is not draft; stopping publication."
-              exit 1
-            fi
-            echo "Verified internal Instagram APK release is now a private draft."
+            draft="$(gh api "/repos/$GITHUB_REPOSITORY/releases/$research_id" --jq '.draft')"
           fi
+          if [[ "$draft" != "true" ]]; then
+            echo "::error::Third-party APK research release must be draft."
+            exit 1
+          fi
+          echo "Verified existing research release ID $research_id is a private draft."
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
