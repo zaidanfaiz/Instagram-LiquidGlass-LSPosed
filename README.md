@@ -32,7 +32,7 @@ an Instagram APK** (Settings > General > Danger Zone > Change visibility).
 Do not publish a third-party APK as a public GitHub release.
 
 1. In the now-private repository, open **Releases > Draft a new release**.
-2. Use tag \`instagram-452-analysis\`, attach the original \`.apk\` or \`.apks\`
+2. Use tag `instagram-452-analysis`, attach the original `.apk` or `.apks`
    file as a **release asset** and publish it. Releases support large assets;
    normal Git commits do not support files over 100 MB.
 3. The **Analyze Instagram APK (no build)** workflow starts from the published
