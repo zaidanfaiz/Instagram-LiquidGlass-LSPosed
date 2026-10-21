@@ -176,6 +176,13 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 decor.postDelayed(this::sync, 240);
                 return;
             }
+            // Glass shields and DevGesturePill already consumed the entire
+            // event sequence and navigated through the real Instagram tab.
+            // Do not synthesize a SECOND click in Activity.dispatchTouchEvent.
+            if (insidePill(scene.mainPill,ev) || insidePill(scene.searchPill,ev)) {
+                decor.postDelayed(this::sync, 260);
+                return;
+            }
             scene.onTouch(ev);
             if (frost != null) {
                 frost.setEnabled(!scene.isReelsActive()
@@ -183,6 +190,14 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 frost.request(1000);
             }
             decor.postDelayed(this::sync, 240);
+        }
+
+        private static boolean insidePill(View pill, MotionEvent ev) {
+            if (pill == null || pill.getVisibility() != View.VISIBLE) return false;
+            int[] xy = new int[2];
+            pill.getLocationOnScreen(xy);
+            return ev.getRawX() >= xy[0] && ev.getRawX() <= xy[0]+pill.getWidth()
+                    && ev.getRawY() >= xy[1] && ev.getRawY() <= xy[1]+pill.getHeight();
         }
 
         void stop() {
