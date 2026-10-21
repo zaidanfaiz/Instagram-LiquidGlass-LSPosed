@@ -378,6 +378,10 @@ final class DevGlassUi {
                 search = nav.getChildAt(searchIndex);
                 searchOriginalParams = search.getLayoutParams();
                 nav.removeViewAt(searchIndex);
+                // 452 gives this tab its own opaque selection surface.
+                // Moving it to a circular overlay without removing that
+                // full-size backing makes the Search pill solid white.
+                removeOpaqueButtonSurfaces(search, height, 0, "search");
                 searchShell = createPill(activity, height, dark);
                 // Move exactly one genuine Instagram View, never forge clicks.
                 searchShell.addView(search, new FrameLayout.LayoutParams(
@@ -387,6 +391,14 @@ final class DevGlassUi {
                 searchLp.rightMargin = side;
                 searchLp.bottomMargin = dp(nav, BOTTOM_MARGIN_DP);
                 host.addView(searchShell, searchLp);
+            }
+            // Native tab items can each own a full-height dark backing,
+            // even after the bar's parent background has been cleared.
+            // Strip ONLY non-icon ViewGroup surfaces so the glass behind the
+            // original clickable icons is actually visible.
+            for (int n = 0; n < nav.getChildCount(); n++) {
+                removeOpaqueButtonSurfaces(nav.getChildAt(n), height, 0,
+                        "tab-" + n);
             }
             FrameLayout.LayoutParams mainLp = new FrameLayout.LayoutParams(
                     -1, height, Gravity.BOTTOM | Gravity.LEFT);
@@ -558,6 +570,38 @@ final class DevGlassUi {
                     && child.getWidth() >= w * .83f
                     && child.getHeight() >= h * .80f) {
                 clearOldRowBackground((ViewGroup) child, w, h, depth + 1);
+            }
+        }
+    }
+
+    /**
+     * Remove full-size backgrounds belonging to the native tab *surface*.
+     * Don't strip ImageView drawables, profile avatars, icon badges, or
+     * small drawable elements. Preserve the original clickable native views.
+     */
+    private static void removeOpaqueButtonSurfaces(View v, int fullHeight,
+                                                    int depth, String name) {
+        if (v == null || depth > 5 || !(v instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) v;
+        if (v.getHeight() >= fullHeight * .78f && v.getWidth() > 0) {
+            Drawable bg = v.getBackground();
+            if (bg != null) {
+                String type = bg.getClass().getSimpleName();
+                boolean isSolid = bg instanceof ColorDrawable;
+                boolean isFullSizePanel = depth == 0
+                        || v.getWidth() >= dp(v, 38);
+                if (isFullSizePanel) {
+                    v.setBackground(null);
+                    DevFileLog.note("glass: clear button surface " + name
+                            + " depth=" + depth + " type=" + type
+                            + " opaque=" + isSolid);
+                }
+            }
+        }
+        for (int i = 0; i < Math.min(group.getChildCount(), 12); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof ViewGroup) {
+                removeOpaqueButtonSurfaces(child, fullHeight, depth + 1, name);
             }
         }
     }
