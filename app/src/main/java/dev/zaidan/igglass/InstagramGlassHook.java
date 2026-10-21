@@ -64,17 +64,20 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                     }
                 });
 
-        // Observe UP only; do not override/consume dispatch, native gesture
-        // processing or original Instagram click listeners.
+        // Observe ALL touch states AFTER Instagram handles them. The r17
+        // page-swipe remapper never intercepts a video SurfaceView gesture,
+        // and only routes when native page selection verifies a true swipe.
         XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent",
                 MotionEvent.class, new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam p) {
                         MotionEvent ev = (MotionEvent) p.args[0];
-                        if (ev == null || ev.getActionMasked() != MotionEvent.ACTION_UP) {
-                            return;
-                        }
+                        if (ev == null) return;
                         Controller c = CONTROLLERS.get((Activity) p.thisObject);
-                        if (c != null) c.onTouch(ev);
+                        if (c != null) {
+                            c.onSwipeTouch(ev);
+                            if (ev.getActionMasked() == MotionEvent.ACTION_UP)
+                                c.onTouch(ev);
+                        }
                     }
                 });
     }
@@ -90,6 +93,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         private DevGlassUi.Scene scene;
         private DevEdgeSpaceFix.Session edgeSpace;
         private DevGlassBackdrop frost;
+        private DevOrderedPageSwipe orderedPageSwipe;
         private boolean running;
         private boolean resumed;
         private long lastMissingLog;
@@ -110,6 +114,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                             DevFileLog.note("native nav tree changed; attempting safe rebind");
                             if (frost != null) frost.stop();
                             frost = null;
+                            if (orderedPageSwipe != null) {
+                                orderedPageSwipe.stop();
+                                orderedPageSwipe = null;
+                            }
                             if (edgeSpace != null) {
                                 edgeSpace.unregister();
                                 edgeSpace.restore();
@@ -164,6 +172,11 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             DevFileLog.note("main activity paused: glass hidden; video root geometry preserved");
         }
 
+        void onSwipeTouch(MotionEvent ev) {
+            if (resumed && orderedPageSwipe != null)
+                orderedPageSwipe.onDispatch(ev);
+        }
+
         void onTouch(MotionEvent ev) {
             if (!resumed || scene == null || !scene.attached()) return;
             // dispatchTouchEvent sees ALL Activity touches, including taps
@@ -209,6 +222,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 frost.stop();
                 frost = null;
             }
+            if (orderedPageSwipe != null) {
+                orderedPageSwipe.stop();
+                orderedPageSwipe = null;
+            }
             if (edgeSpace != null) {
                 edgeSpace.unregister();
                 edgeSpace.restore();
@@ -245,6 +262,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (!isDescendant(parent, host)) return;
             scene = DevGlassUi.create(activity, host, parent, nav);
             if (scene == null) return;
+            orderedPageSwipe = new DevOrderedPageSwipe(activity,scene);
             edgeSpace = DevEdgeSpaceFix.inspect(activity, parent);
             // Apply the verified root correction ONCE at installation.
             // Never toggle it when a Reel comment overlay gains/loses focus.
