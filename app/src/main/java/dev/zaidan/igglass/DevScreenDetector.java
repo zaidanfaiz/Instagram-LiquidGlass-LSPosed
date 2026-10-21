@@ -52,7 +52,10 @@ final class DevScreenDetector {
         if (formerParent != null
                 && (!formerParent.isShown() || formerParent.getAlpha() < .10f))
             return "instagram-tab-parent-hidden";
-        if (nav.getVisibility() != View.VISIBLE || nav.getAlpha() < .10f)
+        // The original tab row is intentionally alpha=0 to stop Instagram
+        // painting opaque pixels; it is still VISIBLE and clickable.
+        // Never treat deliberate visual transparency as screen navigation.
+        if (nav.getVisibility() != View.VISIBLE)
             return "native-tab-hidden";
         return null;
     }
