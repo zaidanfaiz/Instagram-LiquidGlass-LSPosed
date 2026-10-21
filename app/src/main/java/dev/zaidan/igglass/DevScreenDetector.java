@@ -180,15 +180,15 @@ final class DevScreenDetector {
     }
 
     private static void classifyResource(String id, View v, Signals f) {
-        if (id.isEmpty()) return;
-        // Only visible, large foreground comment surfaces count; tiny
-        // comment buttons underneath a Reel must not trigger navigation hide.
+        // Class fallback works even when the obfuscated Instagram View has
+        // NO public resource ID. Require a large on-screen panel.
         boolean largePanel = v.getWidth() > f.screenHeight * .12f
                 && v.getHeight() > f.screenHeight * .20f;
         String className = v.getClass().getSimpleName().toLowerCase(Locale.ROOT);
         if ((className.contains("comment") && (className.contains("sheet")
                         || className.contains("panel") || className.contains("dialog")))
                 && largePanel) f.commentSheet++;
+        if (id.isEmpty()) return;
         if ((id.contains("comments_bottom_sheet")
                 || id.contains("comment_bottom_sheet")
                 || id.contains("comment_sheet")
