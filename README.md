@@ -2,6 +2,71 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current test build: **r19 — Reels window-strip blur + stable Home/DM frost**
+
+The uploaded r18 log at 23:48–23:49 proves two different causes:
+
+- Reels blur was **never enabled visually**. `r18 video-glass enabled on
+  Reels` immediately produced `SurfaceView / TextureView not found under
+  capsule`; no `Reels blur SUCCESS` appeared. Instagram can render native
+  video in a separate compositor or stop it just above the capsule, so
+  searching only for a View covering the *entire* tab strip is insufficient.
+- Static Home/DM blur did produce valid `398x54` frames but intermittently
+  logged `live video detected, clear material kept`. Previous code
+  called `clear(main); clear(search)` on that event, turning the glass
+  fully clear for an instant during scrolling.
+
+### r19 changes
+
+1. **Reels video:** preferred source remains a small direct async PixelCopy
+   from a detectable video SurfaceView. When no usable direct video surface
+   exists, use **PixelCopy.request(Window, rect, ...)** asynchronously
+   on a strip **one pill-height plus 13dp ABOVE** the capsule. This samples
+   already-composited nearby video rather than capturing the glass pill
+   recursively. It is a nearby-video approximation, not the exact pixels
+   hidden behind the glass. Both main and separate Search capsules use
+   narrow cropped portions of the same frame.
+2. Keep r18's 30% sampling scale, ~2 frames per second, one PixelCopy
+   request in flight, and alpha 76% GPU 9dp blur. No SurfaceView resizing,
+   video decoder hooks, fullscreen copies or extra touch manipulation.
+   Failure returns to the clear-glass rim instead of a white/black fill.
+3. **Static Home/DM/Profile/Search:** if a transient video SurfaceView
+   overlaps the capture strip, **retain the previous verified blurred
+   frame** for the current page rather than clearing the entire material.
+   Retry sampling later. Dark and muted static/video frames have a more
+   permissive validity check, while all-black/all-white frames are rejected.
+4. Reduce video bitmap allocations by not double-copying each crop. All
+   bitmap processing happens on small strips; screenshot pixels are kept
+   in memory only and never written to Downloads.
+5. All five r17 navigation destinations and swipe order
+   **Home → Reels → DM → Own Profile → Search**, Reels comment
+   overlay hiding, and the existing fullscreen margin and touch safety
+   changes are preserved.
+
+### Test r19 on Instagram 452 / Android 16
+
+- Install the successful `0.1-dev-r19-window-strip-frost` GitHub Actions
+  debug artifact and force-stop Instagram.
+- Reels: open a colorful video and wait 1–2 seconds. A moving frosted
+  reflection should appear on both the long pill and separate Search circle.
+  Look for `r19 Reels fallback: Window PixelCopy above glass` followed
+  by `r19 Reels blur SUCCESS via=window-above` in Downloads log.
+- Scroll 3–4 photo posts in Home, open DM inbox and own Profile. Blur
+  should not disappear immediately just because IG briefly attaches a
+  video view. Logs may say `r19 static blur ... HOLDING last verified`.
+- Test Reels **video/audio playback**, open/close comments 3 times,
+  horizontal nav drags, Search, and fullscreen. If any issue returns,
+  disable LSPosed module and force-stop Instagram; no data reset needed.
+- Send latest `Downloads/IGGlass-0.1-dev-*.txt` plus a screenshot
+  over colorful Reels and a static Home photo. If Window PixelCopy fails,
+  the log distinguishes missing source, invalid frame and copy errors.
+
+**Important:** r19 is an experimental ~2fps background approximation,
+not iOS's instantaneous real-time Liquid Glass compositor. Direct video
+capture may still be unavailable due to protected surfaces, and fallback
+samples neighboring video pixels (not necessarily exactly the content
+behind the pill). GitHub Actions success verifies compilation only.
+
 ## Experimental **r18 — dynamic Reels video blur without video relayout**
 
 This build extends r17's five-destination glass navigation with a second,
