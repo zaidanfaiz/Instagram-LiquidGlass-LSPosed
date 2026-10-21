@@ -6,8 +6,8 @@ android {
         applicationId 'dev.zaidan.igglass'
         minSdk 29
         targetSdk 28
-        versionCode 20
-        versionName '0.1-dev-r11-compact-icons'
+        versionCode 21
+        versionName '0.1-dev-r12-reels-comments-safe-frost'
     }
 }
 dependencies {
