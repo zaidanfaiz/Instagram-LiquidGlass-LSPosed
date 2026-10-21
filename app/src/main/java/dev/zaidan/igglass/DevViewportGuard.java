@@ -82,8 +82,31 @@ final class DevViewportGuard {
                     + Integer.toHexString(decor.getSystemUiVisibility())
                     + " windowFlags=0x"
                     + Integer.toHexString(activity.getWindow().getAttributes().flags));
+            noteNativeGeometry(scene, reason);
         } catch (Throwable e) {
             DevFileLog.note("viewport inspect failed " + e.getClass().getSimpleName());
         }
+    }
+
+    private static void noteNativeGeometry(DevGlassUi.Scene scene, String reason) {
+        ViewGroup wrapper = scene.sourceParent;
+        if (wrapper == null) return;
+        StringBuilder out = new StringBuilder("r15 feed geometry [")
+                .append(reason).append("] wrapper=")
+                .append(wrapper.getWidth()).append("x").append(wrapper.getHeight());
+        for (int i = 0; i < wrapper.getChildCount(); i++) {
+            View child = wrapper.getChildAt(i);
+            String id = DevGlassUi.resourceName(child);
+            if (!"layout_container_main".equals(id)
+                    && !"swipeable_tab_view_pager".equals(id)
+                    && !"layout_bottom_searchbar".equals(id)) continue;
+            ViewGroup.LayoutParams lp = child.getLayoutParams();
+            int margin = lp instanceof ViewGroup.MarginLayoutParams
+                    ? ((ViewGroup.MarginLayoutParams)lp).bottomMargin : -1;
+            out.append(" ").append(id).append("=")
+                    .append(child.getHeight()).append("px/bottom=")
+                    .append(margin);
+        }
+        DevFileLog.note(out.toString());
     }
 }
