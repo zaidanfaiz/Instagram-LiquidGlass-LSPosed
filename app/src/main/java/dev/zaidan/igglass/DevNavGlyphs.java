@@ -30,6 +30,8 @@ final class DevNavGlyphs extends View {
     private final Path avatarClip = new Path();
     private final RectF oval = new RectF();
     private final float density;
+    // iOS-like / Instagram-scale visual artwork, independent of tab hit box.
+    private static final float VISUAL_ICON_RADIUS_DP = 12.8f;
     private int selectedIndex;
 
     DevNavGlyphs(Context context, ViewGroup nativeTabs) {
@@ -69,8 +71,8 @@ final class DevNavGlyphs extends View {
                     + (item.getLeft() + item.getRight()) * .5f;
             float y = nativeTabs.getTop()
                     + (item.getTop() + item.getBottom()) * .5f;
-            float size = Math.min(16.2f * density,
-                    Math.min(item.getWidth() * .24f, item.getHeight() * .29f));
+            float size = Math.min(VISUAL_ICON_RADIUS_DP * density,
+                    Math.min(item.getWidth() * .20f, item.getHeight() * .23f));
             if (size <= 0) continue;
             int saved = canvas.save();
             canvas.translate(x, y);
@@ -106,7 +108,9 @@ final class DevNavGlyphs extends View {
             }
             android.graphics.Rect oldBounds = new android.graphics.Rect(draw.getBounds());
             int oldAlpha = draw.getAlpha();
-            int side = Math.round(r * 1.42f);
+            // Old 1.42x radius doubled to a ~46dp icon on high DPI.
+            // Visual artwork is now ~22dp across, while hit targets stay 60dp.
+            int side = Math.max(1, Math.round(r * .86f));
             draw.setBounds(-side,-side,side,side);
             if (!shared) draw.setColorFilter(
                     new PorterDuffColorFilter(Color.WHITE,PorterDuff.Mode.SRC_IN));
