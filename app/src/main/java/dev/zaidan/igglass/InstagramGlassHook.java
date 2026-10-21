@@ -282,35 +282,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // A new native selection can change to Reels during syncSelection.
             if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
 
-            // IG452 sometimes reinstates its 60px root / 180px native tab
-            // reservation after a main-tab transition, leaving a black gap
-            // instead of filling the display. r12 stopped *all* reconciliation
-            // to fix frozen Reels. r13 repairs only when no live video surface
-            // is visible, the user is on a non-Reels main tab and window
-            // focus is stable. No layout manipulation while video is playing.
-            long uptime = android.os.SystemClock.uptimeMillis();
-            if (show && !scene.isReelsActive() && activity.hasWindowFocus()
-                    && uptime - lastSafeViewportCheck >= 6500) {
-                lastSafeViewportCheck = uptime;
-                // Reels playback is the dangerous case: NEVER relayout
-                // while its player tab is active. After switching to Home
-                // or DM, however, the old 180px tab reservation MUST be
-                // cleared again even if IG keeps an offscreen/recycled video
-                // SurfaceView in the hierarchy. r13 wrongly treated every
-                // surviving video surface as a playing Reel and skipped this.
-                boolean video = DevViewportGuard.hasLiveVideo(scene.host);
-                if (!video) {
-                    if (edgeSpace != null) edgeSpace.setActive(true);
-                }
-                // Only adjust known tab-reservation margins when not on Reels.
-                // Never alter the 60px root coordinator while any video
-                // surface remains visible.
-                reclaimOriginalNavSpace();
-                DevViewportGuard.note(activity, scene,
-                        video ? "post-reels-feed-reservation" : "safe-static-tab");
-                if (video)
-                    DevFileLog.note("r14 viewport: 180px feed reservation repaired; root margin skipped for video");
-            }
+            // r14 DevNativeMarginGuard intercepts IG's exact reserved margin
+            // BEFORE the original layout pass. Do not perform a SECOND
+            // post-layout correction here; that used to disrupt Reels videos.
             if (!state.equals(lastReason)) {
                 if (show && frost != null) frost.request(550);
                 lastReason = state;
