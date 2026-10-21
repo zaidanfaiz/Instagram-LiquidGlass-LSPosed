@@ -581,23 +581,26 @@ final class DevGlassUi {
      */
     private static void removeOpaqueButtonSurfaces(View v, int fullHeight,
                                                     int depth, String name) {
-        if (v == null || depth > 5 || !(v instanceof ViewGroup)) return;
-        ViewGroup group = (ViewGroup) v;
-        if (v.getHeight() >= fullHeight * .78f && v.getWidth() > 0) {
-            Drawable bg = v.getBackground();
-            if (bg != null) {
-                String type = bg.getClass().getSimpleName();
-                boolean isSolid = bg instanceof ColorDrawable;
-                boolean isFullSizePanel = depth == 0
-                        || v.getWidth() >= dp(v, 38);
-                if (isFullSizePanel) {
-                    v.setBackground(null);
-                    DevFileLog.note("glass: clear button surface " + name
-                            + " depth=" + depth + " type=" + type
-                            + " opaque=" + isSolid);
-                }
+        if (v == null || depth > 5) return;
+        // A search tab may itself be an ImageView. Remove only the BACKGROUND
+        // drawable of that full-size tab; the foreground image/icon and
+        // original click handlers stay completely untouched.
+        boolean fillsButton = v.getHeight() >= fullHeight * .78f
+                && v.getWidth() >= dp(v, 35);
+        Drawable background = v.getBackground();
+        if (fillsButton && background != null && depth <= 3) {
+            boolean safePanel = depth == 0
+                    || v instanceof ViewGroup && v.getWidth() >= dp(v, 40);
+            if (safePanel) {
+                v.setBackground(null);
+                DevFileLog.note("glass: removed native " + name
+                        + " panel depth=" + depth + " drawable="
+                        + background.getClass().getSimpleName()
+                        + " view=" + v.getClass().getSimpleName());
             }
         }
+        if (!(v instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) v;
         for (int i = 0; i < Math.min(group.getChildCount(), 12); i++) {
             View child = group.getChildAt(i);
             if (child instanceof ViewGroup) {
