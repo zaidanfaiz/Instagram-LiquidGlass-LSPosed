@@ -31,7 +31,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
     // The former 16% contribution was too subtle to look frosted. With an
     // exact captured backdrop, 42% interpolates blurred/unblurred content;
     // it does not add a white/black color fill or change with night mode.
-    private static final float FROST_ALPHA = .42f;
+    private static final float FROST_ALPHA = .58f;
     private static final long MIN_CAPTURE_MS = 1800L;
     private static final long TOO_SLOW_MS = 28L;
     private final Activity activity;
@@ -65,7 +65,9 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         v.setScaleType(ImageView.ScaleType.FIT_XY);
         v.setAlpha(0f); // No blur until a VERIFIED valid frame arrives.
         if(Build.VERSION.SDK_INT >= 31) {
-            float blur = 11f*activity.getResources().getDisplayMetrics().density;
+            // The snapshot is downscaled to 23%. A modest 5dp blur on that
+            // sampled layer is clearer than a huge 11dp blur over 305px.
+            float blur = 5f*activity.getResources().getDisplayMetrics().density;
             v.setRenderEffect(RenderEffect.createBlurEffect(
                     blur, blur, Shader.TileMode.CLAMP));
         }
@@ -79,7 +81,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         started=true;
         ViewTreeObserver obs=host.getViewTreeObserver();
         if(obs.isAlive()) obs.addOnScrollChangedListener(this);
-        DevFileLog.note("r13 optical-frost: static-content strength=42%, radius=11dp; Reels capture OFF");
+        DevFileLog.note("r14 optical-frost: static content strength=58%, radius=5dp; Reels capture OFF");
     }
 
     void setEnabled(boolean shouldEnable) {
@@ -202,7 +204,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                 if(y!=null)replace(search,y);
             }
             DevFileLog.note("r13 optical-frost sample=" + combined.getWidth()
-                    +"x"+combined.getHeight()+" blend=42% radius=11dp took="+took+"ms");
+                    +"x"+combined.getHeight()+" blend=58% radius=5dp took="+took+"ms");
         }catch(Throwable error) {
             tooSlow=true;
             clear(main);clear(search);
