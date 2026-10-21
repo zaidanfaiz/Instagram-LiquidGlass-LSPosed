@@ -28,6 +28,10 @@ import android.widget.ImageView;
  */
 final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener {
     private static final float SCALE = .23f;
+    // The former 16% contribution was too subtle to look frosted. With an
+    // exact captured backdrop, 42% interpolates blurred/unblurred content;
+    // it does not add a white/black color fill or change with night mode.
+    private static final float FROST_ALPHA = .42f;
     private static final long MIN_CAPTURE_MS = 1800L;
     private static final long TOO_SLOW_MS = 28L;
     private final Activity activity;
@@ -59,9 +63,9 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         v.setFocusable(false);
         v.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         v.setScaleType(ImageView.ScaleType.FIT_XY);
-        v.setAlpha(.16f); // 84% of original pixels ALWAYS remain unmodified.
+        v.setAlpha(0f); // No blur until a VERIFIED valid frame arrives.
         if(Build.VERSION.SDK_INT >= 31) {
-            float blur = 6f*activity.getResources().getDisplayMetrics().density;
+            float blur = 11f*activity.getResources().getDisplayMetrics().density;
             v.setRenderEffect(RenderEffect.createBlurEffect(
                     blur, blur, Shader.TileMode.CLAMP));
         }
@@ -75,7 +79,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         started=true;
         ViewTreeObserver obs=host.getViewTreeObserver();
         if(obs.isAlive()) obs.addOnScrollChangedListener(this);
-        DevFileLog.note("r12 safe-frost: home-only alpha=16%, no Reels PixelCopy");
+        DevFileLog.note("r13 optical-frost: static-content strength=42%, radius=11dp; Reels capture OFF");
     }
 
     void setEnabled(boolean shouldEnable) {
@@ -94,6 +98,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
 
     private static void clear(ImageView v) {
         if(v == null) return;
+        v.setAlpha(0f);
         android.graphics.drawable.Drawable old=v.getDrawable();
         v.setImageDrawable(null);
         if(old instanceof android.graphics.drawable.BitmapDrawable) {
@@ -110,7 +115,14 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
     }
 
     @Override public void onScrollChanged() {
-        request(1100);
+        // Immediately discard the old frame while Instagram is scrolling,
+        // otherwise the bitmap lags behind the moving feed and looks like an
+        // opaque, ghosted overlay. Re-frost when scrolling has settled.
+        if(enabled) {
+            clear(main);
+            clear(search);
+            request(1100);
+        }
     }
 
     private void capture() {
@@ -189,8 +201,8 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                 Bitmap y=crop(combined,searchR,bounds);
                 if(y!=null)replace(search,y);
             }
-            DevFileLog.note("r12 safe-frost sample=" + combined.getWidth()
-                    +"x"+combined.getHeight()+" took="+took+"ms");
+            DevFileLog.note("r13 optical-frost sample=" + combined.getWidth()
+                    +"x"+combined.getHeight()+" blend=42% radius=11dp took="+took+"ms");
         }catch(Throwable error) {
             tooSlow=true;
             clear(main);clear(search);
@@ -221,6 +233,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
     private static void replace(ImageView v, Bitmap b) {
         android.graphics.drawable.Drawable previous=v.getDrawable();
         v.setImageBitmap(b);
+        v.setAlpha(FROST_ALPHA);
         if(previous instanceof android.graphics.drawable.BitmapDrawable) {
             Bitmap old=((android.graphics.drawable.BitmapDrawable)previous).getBitmap();
             if(old!=null&&old!=b&&!old.isRecycled())
