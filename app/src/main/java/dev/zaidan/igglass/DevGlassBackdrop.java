@@ -87,7 +87,8 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         started=true;
         ViewTreeObserver obs=host.getViewTreeObserver();
         if(obs.isAlive()) obs.addOnScrollChangedListener(this);
-        DevFileLog.note("r16 glass-frost: stable scrolling 62-84% opacity; ignore tiny recycled video intersections; Reels capture OFF");
+        DevFileLog.note("r19 static frost: retain last verified blur during"
+                +" transient video-layer overlap; Reels copied separately");
     }
 
     void setEnabled(boolean shouldEnable) {
@@ -172,11 +173,16 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         // freezes caused by video layers being sampled or re-laid out.
         if(hasVideoSurface(host,bounds,hostXY,0,new int[]{1400})) {
             if(!skipVideoLogged) {
-                DevFileLog.note("r12 safe-frost: live video detected, clear material kept");
+                DevFileLog.note("r19 static blur: live video intersects;"
+                        +" HOLDING last verified frosted frame, never"
+                        +" recording video via View.draw");
                 skipVideoLogged=true;
             }
-            clear(main);
-            clear(search);
+            // Old implementation called clear(main/search) here. A recycled
+            // video view crossing the strip for ONE layout frame made glass
+            // flicker completely clear. Retain the last VALID frosted pixels
+            // within this still-visible page and retry sampling later.
+            request(900);
             return;
         }
         skipVideoLogged=false;
@@ -211,9 +217,8 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                 return;
             }
             if(!isUsable(combined)) {
-                // A flat-colored feed segment is still a valid backing
-                // situation. Do not zero a previously verified blur because
-                // one transient capture had little luminance variation.
+                // Preserve last verified backdrop for this page. A new frame
+                // may be temporarily flat or missing during a transition.
                 DevFileLog.note("r16 frost frame rejected: low-detail/unusable");
                 return;
             }
@@ -249,7 +254,10 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
             }
         }
         double avg=sum/n,dev=Math.sqrt(Math.max(0,squares/n-avg*avg));
-        return dev>.07 && avg<.90 && avg>.07;
+        // Do not reject real low-contrast photos or muted Instagram views.
+        // Alpha is already verified above; still reject all-black/white
+        // captures and completely empty images.
+        return dev>.014 && avg<.965 && avg>.035;
     }
 
     private static void replace(ImageView v, Bitmap b) {
