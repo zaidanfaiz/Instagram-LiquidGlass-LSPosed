@@ -1,0 +1,84 @@
+name: Bug report
+description: Report a reproducible navigation, blur or playback problem
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping test this beta. **Do not paste account credentials, message contents or unredacted screenshots/logs.**
+        The primary supported target is Instagram 452.0.0.48.64 on Android 16.
+  - type: input
+    id: module
+    attributes:
+      label: Module version
+      description: "GitHub release tag or installed version, e.g. v0.1.0-beta.1"
+      placeholder: v0.1.0-beta.1
+    validations:
+      required: true
+  - type: input
+    id: instagram
+    attributes:
+      label: Instagram version
+      placeholder: 452.0.0.48.64
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Android / ROM / device
+      placeholder: Android 16; ROM; device model
+    validations:
+      required: true
+  - type: input
+    id: lsposed
+    attributes:
+      label: LSPosed version
+      placeholder: LSPosed variant and version
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected feature
+      options:
+        - Floating navigation / click
+        - Page swiping
+        - Search
+        - Home / DM blur
+        - Reels video blur
+        - Reels video playback / comments
+        - Fullscreen / black bottom strip
+        - Crash or other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include exact steps and how often the bug occurs.
+      placeholder: "1. Open Home\n2. Go to Reels\n3. ... "
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Does the issue disappear when this module is disabled in LSPosed?
+      options:
+        - Yes
+        - No
+        - Not tested yet
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted log (optional)
+      description: "Review Download/IGGlass-0.1-dev-*.txt before posting. Never post private chats or credentials."
+      render: text
