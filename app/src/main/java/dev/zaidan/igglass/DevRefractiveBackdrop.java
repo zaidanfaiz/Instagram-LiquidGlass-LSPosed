@@ -123,7 +123,7 @@ final class DevRefractiveBackdrop extends View {
             "        baseColor.rgb = (baseColor.rgb - 0.5) * (1.0 + contrast) + 0.5;\n" +
             "\n" +
             "        half3 tintedRGB = mix(baseColor.rgb, tintColor, tintAlpha);\n" +
-            "        return half4(tintedRGB, baseColor.a);\n" +
+            "        return half4(tintedRGB, baseColor.a * 0.10);\n" +
             "    }\n" +
             "\n" +
             "    sd = min(sd, 0.0);\n" +
@@ -179,7 +179,7 @@ final class DevRefractiveBackdrop extends View {
             "    color.rgb = (color.rgb - 0.5) * (1.0 + contrast) + 0.5;\n" +
             "\n" +
             "    half3 tintedRGB = mix(color.rgb, tintColor, tintAlpha);\n" +
-            "    return half4(tintedRGB, color.a);\n" +
+            "    return half4(tintedRGB, color.a * 0.60);\n" +
             "}\n";
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG
@@ -189,6 +189,8 @@ final class DevRefractiveBackdrop extends View {
     private RuntimeShader sdfShader;
     private Bitmap snapshot;
     private boolean disabled;
+    private boolean videoMode;
+    private float opticalAlpha;
     private boolean loggedShader;
     private int widthAtLastShaderUpdate;
     private int heightAtLastShaderUpdate;
@@ -219,9 +221,12 @@ final class DevRefractiveBackdrop extends View {
         float[] stats = analyze(image);
         float luma = stats[0], deviation = stats[1];
         float confidence = Math.max(0f, Math.min(1f, (deviation - .055f) / .13f));
-        float opacity = disabled ? 0f : .87f * confidence;
-        if (luma > .81f) opacity *= .88f;
-        setAlpha(opacity);
+        // Optical refraction may only color the *edge*. At 100% confidence
+        // final center contribution is <= 5%; never a solid white/black pill.
+        float opacity = disabled ? 0f : .48f * confidence;
+        if (luma > .81f) opacity *= .86f;
+        opticalAlpha = opacity;
+        setAlpha(videoMode ? 0f : opacity);
         Bitmap previous = snapshot;
         snapshot = image;
         invalidate();
@@ -234,7 +239,18 @@ final class DevRefractiveBackdrop extends View {
         DevFileLog.note("SDF optics luma=" + Math.round(luma * 100)
                 + "% detail=" + Math.round(deviation * 100)
                 + "% confidence=" + Math.round(confidence * 100)
-                + "% visible=" + Math.round(opacity * 100) + "%");
+                + "% optical-edge-max=" + Math.round(opacity * .60f * 100)
+                + "% center-max=" + Math.round(opacity * .10f * 100) + "%");
+    }
+
+    void setVideoMode(boolean enabled) {
+        if (videoMode == enabled) return;
+        videoMode = enabled;
+        // Reels commonly use SurfaceView, absent from software View.draw.
+        // Never display a wrongly captured (possibly white) static image.
+        setAlpha(videoMode ? 0f : opticalAlpha);
+        DevFileLog.note("optics video mode=" + videoMode
+                + "; base alpha always 0%");
     }
 
     private static float[] analyze(Bitmap b) {
