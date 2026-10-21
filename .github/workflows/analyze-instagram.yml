@@ -1,0 +1,107 @@
+name: Analyze Instagram APK (no build)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Private release tag containing APK"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Inspect navigation resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout LSPosed source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download APK from this repository release
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: \${{ github.event.release.tag_name || inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/instagram-input"
+          gh release download "$RELEASE_TAG" \
+            -R "$GITHUB_REPOSITORY" \
+            --pattern '*.apk*' \
+            --dir "$RUNNER_TEMP/instagram-input"
+          APK="$(find "$RUNNER_TEMP/instagram-input" -maxdepth 1 -type f \
+            \( -iname '*.apk' -o -iname '*.apks' \) -print -quit)"
+          if [[ -z "$APK" ]]; then
+            echo "::error::No .apk/.apks release asset. Upload it to a private release first."
+            exit 1
+          fi
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+          ls -lh "$APK"
+
+      - name: Inspect ZIP, DEX and nested APK structure
+        run: |
+          set -euo pipefail
+          python3 scripts/apk_nav_probe.py \
+            --apk "$APK_PATH" --output-dir "$RUNNER_TEMP/nav-report"
+          echo "INSPECT_APK=$RUNNER_TEMP/base-for-apktool.apk" >> "$GITHUB_ENV"
+
+      - name: Download Apktool 3.0.3
+        run: |
+          curl --fail --location --retry 3 --show-error --silent \
+            https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar \
+            -o "$RUNNER_TEMP/apktool.jar"
+          test "$(wc -c < "$RUNNER_TEMP/apktool.jar")" -gt 1000000
+
+      - name: Decode resources and manifest (no APK redistribution)
+        run: |
+          set -uo pipefail
+          timeout 900s java -Xmx5g -jar "$RUNNER_TEMP/apktool.jar" d \
+            --force --no-src \
+            "$INSPECT_APK" -o "$RUNNER_TEMP/instagram-decoded" \
+            > "$RUNNER_TEMP/nav-report/apktool.log" 2>&1
+          RESULT=$?
+          {
+            echo "# Apktool decode status"
+            echo ""
+            echo "Exit code: $RESULT"
+            echo "(124 means a 15 minute timeout; the DEX scan is independent.)"
+            echo ""
+            echo "Last 30 lines of Apktool output:"
+            tail -n 30 "$RUNNER_TEMP/nav-report/apktool.log"
+          } > "$RUNNER_TEMP/nav-report/decoding-status.txt"
+          if [[ "$RESULT" -ne 0 ]]; then
+            echo "::warning::Apktool decode exited $RESULT; DEX scan is still available."
+          fi
+          exit 0
+
+      - name: Find decoded navigation layouts and styling
+        run: |
+          if [[ -d "$RUNNER_TEMP/instagram-decoded/res" ]]; then
+            python3 scripts/apk_nav_probe.py \
+              --apk "$INSPECT_APK" \
+              --decoded "$RUNNER_TEMP/instagram-decoded" \
+              --output-dir "$RUNNER_TEMP/nav-report"
+          else
+            printf 'Apktool did not produce decoded resources.\n' \
+              > "$RUNNER_TEMP/nav-report/decoded-candidates.md"
+          fi
+
+      - name: Upload only text investigation reports, never Instagram APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: instagram-452-nav-analysis
+          path: |
+            \${{ runner.temp }}/nav-report/*.md
+            \${{ runner.temp }}/nav-report/decoding-status.txt
+          if-no-files-found: error
+          retention-days: 7
