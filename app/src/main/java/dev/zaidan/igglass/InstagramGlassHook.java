@@ -28,7 +28,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
- * v0.6 legacy-navbar-removal beta for Instagram's 5-tab navigation.
+ * v0.7 runtime diagnostic beta (floating UI unchanged from v0.6) for Instagram's 5-tab navigation.
  *
  * It relocates the ORIGINAL navigation buttons and draws a sampled, blurred
  * approximation of content behind them. This is not the native iOS shader.
@@ -46,7 +46,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
         if (!PACKAGE.equals(load.packageName)) return;
-        XposedBridge.log("IGGlass v0.6: " + load.processName);
+        XposedBridge.log("IGGlass v0.7-diag: " + load.processName);
         XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent", MotionEvent.class,
                 new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
@@ -97,6 +97,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
         FrameLayout host = (FrameLayout) content;
         ViewGroup parent = (ViewGroup) nav.getParent();
+        NavDiagnostics.dump(activity, nav, parent, "before-floating");
         if (!descendsFrom(parent, host) || isInsideCollection(parent)) {
             fallback(nav);
             STYLED.put(nav, true);
@@ -175,7 +176,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             GlassUpdater updater = new GlassUpdater(activity, host, shell, sampledBackdrop);
             SCENES.put(activity, updater);
             updater.start();
-            XposedBridge.log("IGGlass v0.6: single floating nav installed");
+            host.postDelayed(() -> NavDiagnostics.dump(activity, nav, parent,
+                    "after-floating"), 450);
+            XposedBridge.log("IGGlass v0.7-diag: single floating nav installed");
         } catch (Throwable e) {
             XposedBridge.log("IGGlass: overlay failed, restoring: " + e);
             try {
