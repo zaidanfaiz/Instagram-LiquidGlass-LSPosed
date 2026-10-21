@@ -360,7 +360,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
     private static Bitmap sample(FrameLayout host, FrameLayout shell,
                                  int x, int y, int w, int h) {
-        // Approx. quarter-resolution: low overhead and smooth blur edges.
+        // Low-resolution offscreen render; skip the floating glass layer itself
+        // without calling setVisibility(), which can invalidate layout/scroll.
         final float scale = .30f;
         Bitmap bitmap = Bitmap.createBitmap(
                 Math.max(1, (int) (w * scale)),
@@ -371,16 +372,22 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         canvas.scale(scale, scale);
         canvas.translate(-x, -y);
         canvas.clipRect(x, y, x + w, y + h);
-        int previous = shell.getVisibility();
         try {
-            shell.setVisibility(View.INVISIBLE);
-            host.draw(canvas);
+            if (host.getBackground() != null) host.getBackground().draw(canvas);
+            for (int i = 0; i < host.getChildCount(); i++) {
+                View child = host.getChildAt(i);
+                if (child == shell || child.getVisibility() != View.VISIBLE) continue;
+                int saved = canvas.save();
+                canvas.translate(child.getLeft() - host.getScrollX(),
+                        child.getTop() - host.getScrollY());
+                canvas.concat(child.getMatrix());
+                child.draw(canvas);
+                canvas.restoreToCount(saved);
+            }
             return bitmap;
         } catch (Throwable e) {
             bitmap.recycle();
             return null;
-        } finally {
-            shell.setVisibility(previous);
         }
     }
 
