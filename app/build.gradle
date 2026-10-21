@@ -6,8 +6,8 @@ android {
         applicationId 'dev.zaidan.igglass'
         minSdk 29
         targetSdk 28
-        versionCode 11
-        versionName '0.1-dev-r2-dark-glass'
+        versionCode 12
+        versionName '0.1-dev-r3-frosted-glass'
     }
 }
 dependencies {
