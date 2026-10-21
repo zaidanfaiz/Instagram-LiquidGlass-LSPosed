@@ -209,7 +209,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
         private void sync() {
             if (!running || !resumed || scene == null || !scene.attached()) return;
-            String reason = DevScreenDetector.hiddenBecause(activity, scene.nav);
+            String reason = DevScreenDetector.hiddenBecause(activity, scene.nav, scene.sourceParent);
             String state = reason == null ? "visible" : "hidden:" + reason;
             boolean show = reason == null;
             scene.show(show);
