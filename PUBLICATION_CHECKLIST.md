@@ -18,8 +18,9 @@ This file is for the repository maintainer. **The GitHub repository must stay pr
 - [ ] Re-test opening/closing Reels comments without freezing the picture or stopping sound.
 - [ ] Confirm the lower black strip does not return after navigating through all five tabs.
 - [ ] Review the public screenshot choice: avoid showing a real Instagram account name, private messages or other personal data.
-- [x] Recorded the known testing facts: Android 16 / API 36, 1440×3200 window resolution and Instagram 452.0.0.48.64. README states that **other versions may work**.
-- [ ] Obtain the **actual device manufacturer/model and ROM name**, which are not in the available diagnostics; do not guess them or publish a historical phone as the current test device.
+- [x] Recorded the verified development setup: **POCO F7 Ultra** (model confirmed by maintainer), Android 16 / API 36, 1440×3200 window dimensions, Instagram 452.0.0.48.64. README states that **other versions may work**.
+- [x] Device model confirmed by maintainer: **POCO F7 Ultra**. No longer missing.
+- [ ] Obtain the **ROM name/build identifier** if the maintainer wants this detail in the README; it is not in the available log and has intentionally been omitted.
 - [ ] Confirm the expected update process is **manual GitHub APK download → Android installer Update → reopen Instagram**. The installer only supports updating in place when the module APK is signed with a compatible certificate and has an acceptable versionCode. The existing beta was debug-signed with a CI-generated key.
 - [ ] If seamless future updates matter, configure a **persistent maintainer-owned signing certificate** through GitHub Actions Secrets before the next stable version. Never commit a private key. Switching away from the old ephemeral debug certificate may require a **one-time reinstall of the module only**.
 
