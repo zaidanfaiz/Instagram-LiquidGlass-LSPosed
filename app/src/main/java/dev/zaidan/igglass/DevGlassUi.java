@@ -131,8 +131,7 @@ final class DevGlassUi {
             final float rawY = ev.getRawY();
             if (searchPill != null && inside(searchPill, rawX, rawY)) {
                 if (searchFx != null) pulse(searchFx, searchPill, rawX, rawY);
-                selectSearch();
-                DevFileLog.note("touch native SEARCH control");
+                tapSearch();
                 return;
             }
             if (!inside(nav, rawX, rawY)) return;
@@ -215,6 +214,24 @@ final class DevGlassUi {
                                 searchPill.animate().scaleX(1f).scaleY(1f)
                                         .setDuration(210).start()).start();
             }
+        }
+
+        void tapSearch() {
+            // r15 accidentally called selectSearch() only, changing the
+            // visual lens without invoking Instagram's genuine Search tab.
+            // Preserve the original target's click listener and call it once,
+            // exactly like the Home/Reels/Inbox/Profile pill delegates.
+            if (search == null || search.getParent() == null) {
+                DevFileLog.note("r16 search click FAILED: native Search missing");
+                return;
+            }
+            boolean handled = clickRealTab(search, 0);
+            String via = handled ? "performClick" : "nativeTouchDispatch";
+            if (!handled) handled = dispatchOriginalTouch(search);
+            if (handled) selectSearch();
+            DevFileLog.note("r16 native Search click handled=" + handled
+                    + " via=" + via + " nativeView="
+                    + search.getClass().getSimpleName());
         }
 
         void selectMain(int index, boolean animated) {
@@ -526,7 +543,7 @@ final class DevGlassUi {
                 searchShield.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 searchShield.setOnTouchListener((v, ev) -> {
                     if (ev.getActionMasked() == MotionEvent.ACTION_UP) {
-                        scene.selectSearch();
+                        scene.tapSearch();
                     }
                     return true;
                 });
