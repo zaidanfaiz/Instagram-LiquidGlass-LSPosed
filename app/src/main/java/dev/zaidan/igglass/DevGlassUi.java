@@ -245,6 +245,70 @@ final class DevGlassUi {
             nav.post(() -> positionLens(animated));
         }
 
+        /**
+         * IG452's VERIFIED original five-tab indices:
+         * [Home=0, Reels=1, Direct=2, Search=3, OwnProfile=4].
+         * Search was visually detached from slot 3 but remains its REAL
+         * original clickable View. The glass bar displays indices 0,1,2,4.
+         * Never change IG ViewPager adapter order or programmatic page IDs.
+         */
+        int visualOriginalPage() {
+            if (selectionSearch) return 3;
+            final int[] pages = {0,1,2,4};
+            return activeIndex >= 0 && activeIndex < pages.length
+                    ? pages[activeIndex] : -1;
+        }
+
+        int nativeSelectedOriginalPage() {
+            // Prefer actual native selected states over inferred visual state.
+            // Multiple selections (e.g., a nested carousel button) are
+            // ambiguous: signal -1 rather than guessing a page.
+            int nativePage = -1;
+            int[] pages = {0,1,2,4};
+            for (int i = 0; i < nav.getChildCount() && i < pages.length; i++) {
+                if (!isSelected(nav.getChildAt(i), 0)) continue;
+                if (nativePage >= 0) return -1;
+                nativePage = pages[i];
+            }
+            if (search != null && isSelected(search,0)) {
+                if (nativePage >= 0) return -1;
+                nativePage = 3;
+            }
+            return nativePage;
+        }
+
+        boolean navigateOriginalPage(int originalPage, String reason) {
+            if (!attached()) return false;
+            View target;
+            int visualIndex = -1;
+            if (originalPage == 3) {
+                target = search;
+            } else {
+                int[] orig = {0,1,2,4};
+                for (int i=0; i<orig.length; i++) {
+                    if (orig[i] == originalPage) {
+                        visualIndex = i;
+                        break;
+                    }
+                }
+                if (visualIndex < 0 || visualIndex >= nav.getChildCount())
+                    return false;
+                target = nav.getChildAt(visualIndex);
+            }
+            if (target == null || target.getParent() == null) return false;
+            boolean handled = clickRealTab(target, 0);
+            String method = handled ? "performClick" : "nativeTouchDispatch";
+            if (!handled) handled = dispatchOriginalTouch(target);
+            if (handled) {
+                if (originalPage == 3) selectSearch();
+                else selectMain(visualIndex,true);
+            }
+            DevFileLog.note("r17 swipe remap " + reason
+                    + " desiredOrig=" + originalPage
+                    + " method=" + method + " handled=" + handled);
+            return handled;
+        }
+
         boolean isReelsActive() { return !selectionSearch && activeIndex == 1; }
 
         private void updateVideoGlass(boolean onReels) {
