@@ -54,11 +54,11 @@ final class DevGlassSurface extends View {
         radius = h / 2f;
         if (selectedLens) {
             tint.setShader(new LinearGradient(0f, 0f, w, h,
-                    new int[] {0xA08091A0, 0x68869AA9, 0x9A576777},
+                    new int[] {0xB6C7D5DF, 0x8598AFC1, 0xA8A6B7C5},
                     new float[] {0f, .46f, 1f}, Shader.TileMode.CLAMP));
         } else {
             tint.setShader(new LinearGradient(0f, 0f, w, h,
-                    new int[] {0x593D4B59, 0x4927303B, 0x5E3A4550},
+                    new int[] {0x859AA9B6, 0x70798FA2, 0x8290A2B0},
                     new float[] {0f, .51f, 1f}, Shader.TileMode.CLAMP));
         }
         edge.setShader(new LinearGradient(0, 0, w, h,
@@ -77,7 +77,7 @@ final class DevGlassSurface extends View {
                 Math.max(w * .53f, h),
                 selectedLens
                     ? new int[] {0x7AFFFFFF, 0x2EFFFFFF, 0x00FFFFFF}
-                    : new int[] {0x40F5FAFF, 0x14F4FAFF, 0x00FFFFFF},
+                    : new int[] {0x5DF5FAFF, 0x1DF4FAFF, 0x00FFFFFF},
                 new float[] {0f, .42f, 1f}, Shader.TileMode.CLAMP));
         lowerShade.setShader(new LinearGradient(0, 0, 0, h,
                 new int[] {0x00B5D8EE, 0x00B5D8EE, 0x42798FA1},
