@@ -66,6 +66,10 @@ final class DevScreenDetector {
         return page == null ? "(router not detected)" : "page=" + page;
     }
 
+    static String pageName(Activity activity) {
+        return inspect(activity).name();
+    }
+
     private static Page inspect(Activity activity) {
         View root = activity.getWindow().getDecorView();
         if (!(root instanceof ViewGroup)) return Page.UNKNOWN;
