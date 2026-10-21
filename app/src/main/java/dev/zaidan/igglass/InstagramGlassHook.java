@@ -145,8 +145,12 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         void onPause() {
             resumed = false;
             if (scene != null) scene.show(false);
-            if (edgeSpace != null) edgeSpace.restore();
-            DevFileLog.note("main activity paused: hide both glass shells");
+            // Do NOT restore the 60px root margin here. Opening a modal
+            // comment sheet, another Window or an input UI can briefly pause
+            // the main Activity while the same Reel Surface remains active.
+            // Root relayout in that moment can orphan/freeze SurfaceView
+            // visuals even when the audio decoder keeps playing.
+            DevFileLog.note("main activity paused: glass hidden; video root geometry preserved");
         }
 
         void onTouch(MotionEvent ev) {
@@ -200,7 +204,11 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             scene = DevGlassUi.create(activity, host, parent, nav);
             if (scene == null) return;
             edgeSpace = DevEdgeSpaceFix.inspect(activity, parent);
+            // Apply the verified root correction ONCE at installation.
+            // Never toggle it when a Reel comment overlay gains/loses focus.
+            if (edgeSpace != null) edgeSpace.setActive(true);
             reclaimOriginalNavSpace();
+            DevFileLog.note("r12 playback safety: main video geometry frozen after initial install");
             // Diagnostic optical baseline: no captured feed/video bitmap may
             // be painted onto the shell. The r7/r8 screenshots stayed white
             // EVEN when native tab rendering was alpha=0. This decisively
@@ -218,11 +226,11 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             String state = reason == null ? "visible" : "hidden:" + reason;
             boolean show = reason == null;
             scene.show(show);
-            if (edgeSpace != null) edgeSpace.setActive(show);
-            if (show) {
-                reclaimOriginalNavSpace();
-                scene.syncSelection();
-            }
+            // Neither setActive(show) nor margin reclamation may run in
+            // periodic sync: it forces repeated setLayoutParams() on the
+            // live video coordinator, which can freeze SurfaceView pictures
+            // after dismissing the comments sheet. Installer owns insets.
+            if (show) scene.syncSelection();
             if (!state.equals(lastReason)) {
                 if (show && frost != null) frost.request(550);
                 lastReason = state;
