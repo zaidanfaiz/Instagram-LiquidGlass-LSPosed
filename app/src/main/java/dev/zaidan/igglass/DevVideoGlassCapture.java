@@ -51,6 +51,7 @@ final class DevVideoGlassCapture {
     private int successes;
     private long lastCapture;
     private boolean warnedMissing;
+    private boolean disabledThisReels;
 
     DevVideoGlassCapture(Activity activity, DevGlassUi.Scene scene) {
         this.activity=activity;
@@ -91,8 +92,10 @@ final class DevVideoGlassCapture {
                 && scene.isReelsActive() && activity.hasWindowFocus()
                 && !activity.isFinishing() && !activity.isDestroyed();
         if(allow==enabled)return;
-        enabled=allow;
         generation++;
+        if(!allow) disabledThisReels=false;
+        if(allow && disabledThisReels) return;
+        enabled=allow;
         mainHandler.removeCallbacks(tick);
         if(!enabled) {
             hide(mainImage);hide(searchImage);
@@ -148,11 +151,17 @@ final class DevVideoGlassCapture {
         surface.getLocationOnScreen(surfacePos);
         Rect sourceRect=new Rect(screenRect);
         sourceRect.offset(-surfacePos[0],-surfacePos[1]);
-        if(sourceRect.left<0||sourceRect.top<0
-                ||sourceRect.right>surface.getWidth()
-                ||sourceRect.bottom>surface.getHeight()) {
+        // The native Reel can stop 20-40px above Android's gesture area.
+        // Capture the intersection instead of demanding 100% coverage:
+        // PixelCopy will upscale its narrow video band to the glass area.
+        // This is refraction-like edge extension, not a fake color fill.
+        Rect clipped=new Rect(sourceRect);
+        if(!clipped.intersect(0,0,surface.getWidth(),surface.getHeight())
+                || clipped.width()<screenRect.width()*.86f
+                || clipped.height()<screenRect.height()*.52f) {
             schedule(700);return;
         }
+        sourceRect=clipped;
         Bitmap destination=null;
         final int frameGeneration=generation;
         try {
@@ -177,6 +186,7 @@ final class DevVideoGlassCapture {
                                             +" failures="+failures);
                                 if(failures>=MAX_FAILURES) {
                                     enabled=false;
+                                    disabledThisReels=true;
                                     hide(mainImage);hide(searchImage);
                                     DevFileLog.note("r18 PixelCopy disabled for this"
                                             +" Reels session; transparent fallback");
@@ -189,6 +199,7 @@ final class DevVideoGlassCapture {
                                             +" keeping transparent material");
                                 if(failures>=MAX_FAILURES) {
                                     enabled=false;
+                                    disabledThisReels=true;
                                     hide(mainImage);hide(searchImage);
                                     DevFileLog.note("r18 blank video copies: capture"
                                             +" disabled until leaving Reels");
@@ -218,6 +229,7 @@ final class DevVideoGlassCapture {
                     +error.getClass().getSimpleName());
             if(failures>=MAX_FAILURES) {
                 enabled=false;
+                disabledThisReels=true;
                 hide(mainImage);hide(searchImage);
                 DevFileLog.note("r18 video-glass disabled after repeated errors");
             } else schedule(1000);
@@ -303,10 +315,13 @@ final class DevVideoGlassCapture {
             SurfaceView surface=(SurfaceView)view;
             if(surface.getWidth()<120||surface.getHeight()<120)return;
             Rect rect=screenRect(surface);
-            if(!rect.contains(wanted))return; // no stretched/partial video
             Rect visible=new Rect();
-            if(!surface.getGlobalVisibleRect(visible)
-                    ||!visible.contains(wanted))return;
+            if(!surface.getGlobalVisibleRect(visible)) return;
+            if(!visible.intersect(wanted)) return;
+            long covered=(long)visible.width()*visible.height();
+            long requested=(long)wanted.width()*wanted.height();
+            if(requested<=0 || covered*100<requested*55
+                    || visible.width()<wanted.width()*.88f)return;
             long area=(long)rect.width()*rect.height();
             if(found.surface==null||area>found.area) {
                 found.area=area;
