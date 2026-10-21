@@ -5,3 +5,13 @@ local.properties
 .idea/
 *.iml
 app/libs/*.jar
+
+# Never commit signing credentials or local output
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+*.env
+.env.*
+dist/
