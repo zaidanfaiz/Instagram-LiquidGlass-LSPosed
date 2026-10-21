@@ -6,8 +6,8 @@ android {
         applicationId 'dev.zaidan.igglass'
         minSdk 29
         targetSdk 28
-        versionCode 23
-        versionName '0.1-dev-r14-gesture-margin-guard'
+        versionCode 24
+        versionName '0.1-dev-r15-fullscreen-visible-blur'
     }
 }
 dependencies {
