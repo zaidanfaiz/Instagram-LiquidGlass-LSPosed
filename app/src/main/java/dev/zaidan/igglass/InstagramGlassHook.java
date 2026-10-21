@@ -10,6 +10,9 @@ import android.graphics.RenderEffect;
 import android.graphics.Shader;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.view.Choreographer;
+import android.view.MotionEvent;
+import android.view.ViewTreeObserver;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -34,13 +37,33 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public final class InstagramGlassHook implements IXposedHookLoadPackage {
     private static final String PACKAGE = "com.instagram.android";
     private static final WeakHashMap<View, Boolean> STYLED = new WeakHashMap<>();
-    private static final int HORIZONTAL_MARGIN_DP = 14;
-    private static final int BOTTOM_MARGIN_DP = 14;
-    private static final long SAMPLE_INTERVAL_MS = 900L;
+    private static final int HORIZONTAL_MARGIN_DP = 20;
+    private static final int BOTTOM_MARGIN_DP = 52;
+    private static final long MAX_FRAME_INTERVAL_NS = 50_000_000L; // up to 20 fps while scrolling
+    private static final long ACTIVE_TAIL_NS = 700_000_000L;
+    private static final long IDLE_REFRESH_MS = 550L;
+    private static final WeakHashMap<Activity, GlassUpdater> SCENES = new WeakHashMap<>();
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
         if (!PACKAGE.equals(load.packageName)) return;
-        XposedBridge.log("IGGlass v0.3: " + load.processName);
+        XposedBridge.log("IGGlass v0.4: " + load.processName);
+        XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent", MotionEvent.class,
+                new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam param) {
+                        Activity activity = (Activity) param.thisObject;
+                        GlassUpdater updater = SCENES.get(activity);
+                        if (updater != null) {
+                            updater.onTouch((MotionEvent) param.args[0]);
+                        }
+                    }
+                });
+        XposedHelpers.findAndHookMethod(Activity.class, "onDestroy", new XC_MethodHook() {
+            @Override protected void beforeHookedMethod(MethodHookParam param) {
+                Activity activity = (Activity) param.thisObject;
+                GlassUpdater updater = SCENES.remove(activity);
+                if (updater != null) updater.stop();
+            }
+        });
         XposedHelpers.findAndHookMethod(Activity.class, "onResume",
                 new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
@@ -151,8 +174,12 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             }
             host.bringChildToFront(shell);
             STYLED.put(nav, true);
-            shell.post(() -> updateBackdrop(activity, host, shell, sampledBackdrop));
-            XposedBridge.log("IGGlass v0.3: installed frosted floating tab bar");
+            GlassUpdater old = SCENES.remove(activity);
+            if (old != null) old.stop();
+            GlassUpdater updater = new GlassUpdater(activity, host, shell, sampledBackdrop);
+            SCENES.put(activity, updater);
+            updater.start();
+            XposedBridge.log("IGGlass v0.4: floating real-time nav installed");
         } catch (Throwable e) {
             XposedBridge.log("IGGlass: overlay failed, restoring: " + e);
             try {
@@ -200,11 +227,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                                        FrameLayout shell, ImageView background) {
         if (activity.isFinishing() || activity.isDestroyed()
                 || shell.getParent() != host || !shell.isAttachedToWindow()) return;
-        if (shell.getWidth() <= 0 || shell.getHeight() <= 0) {
-            shell.postDelayed(() -> updateBackdrop(activity, host, shell, background),
-                    SAMPLE_INTERVAL_MS);
-            return;
-        }
+        if (shell.getWidth() <= 0 || shell.getHeight() <= 0) return;
         if (activity.hasWindowFocus()) {
             try {
                 int[] navXY = new int[2];
@@ -232,8 +255,107 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 XposedBridge.log("IGGlass: sampling unsupported: " + error);
             }
         }
-        shell.postDelayed(() -> updateBackdrop(activity, host, shell, background),
-                SAMPLE_INTERVAL_MS);
+    }
+
+
+    /**
+     * Event-driven sampling instead of a fixed 900ms timer.
+     * During touch/scroll capture up to 20fps, sync with display vsync;
+     * at rest sample infrequently to notice asynchronous image loads.
+     * Stop frame scheduling when the scroll tail ends.
+     */
+    private static final class GlassUpdater
+            implements Choreographer.FrameCallback, ViewTreeObserver.OnScrollChangedListener {
+        private final Activity activity;
+        private final FrameLayout host;
+        private final FrameLayout shell;
+        private final ImageView background;
+        private long lastFrameNs;
+        private long activeUntilNs;
+        private boolean frameQueued;
+        private boolean stopped;
+        private final Runnable idleRefresh = new Runnable() {
+            @Override public void run() {
+                if (!isAlive()) {
+                    stop();
+                    return;
+                }
+                if (System.nanoTime() >= activeUntilNs) {
+                    updateBackdrop(activity, host, shell, background);
+                }
+                host.postDelayed(this, IDLE_REFRESH_MS);
+            }
+        };
+
+        GlassUpdater(Activity activity, FrameLayout host, FrameLayout shell,
+                     ImageView background) {
+            this.activity = activity;
+            this.host = host;
+            this.shell = shell;
+            this.background = background;
+        }
+
+        void start() {
+            if (!isAlive()) return;
+            host.getViewTreeObserver().addOnScrollChangedListener(this);
+            activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
+            queueFrame();
+            host.postDelayed(idleRefresh, IDLE_REFRESH_MS);
+        }
+
+        void onTouch(MotionEvent event) {
+            if (stopped || event == null) return;
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_MOVE:
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
+                    queueFrame();
+                    break;
+                default: break;
+            }
+        }
+
+        @Override public void onScrollChanged() {
+            if (stopped) return;
+            // Keeps updating after finger release while a fling is in motion.
+            activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
+            queueFrame();
+        }
+
+        private boolean isAlive() {
+            return !stopped && !activity.isDestroyed() && !activity.isFinishing()
+                    && shell.getParent() == host;
+        }
+
+        private void queueFrame() {
+            if (frameQueued || !isAlive()) return;
+            frameQueued = true;
+            Choreographer.getInstance().postFrameCallback(this);
+        }
+
+        @Override public void doFrame(long frameTimeNanos) {
+            frameQueued = false;
+            if (!isAlive()) {
+                stop();
+                return;
+            }
+            if (frameTimeNanos - lastFrameNs >= MAX_FRAME_INTERVAL_NS) {
+                lastFrameNs = frameTimeNanos;
+                updateBackdrop(activity, host, shell, background);
+            }
+            if (System.nanoTime() < activeUntilNs) queueFrame();
+        }
+
+        void stop() {
+            if (stopped) return;
+            stopped = true;
+            host.removeCallbacks(idleRefresh);
+            ViewTreeObserver observer = host.getViewTreeObserver();
+            if (observer.isAlive()) observer.removeOnScrollChangedListener(this);
+            Choreographer.getInstance().removeFrameCallback(this);
+        }
     }
 
     private static Bitmap sample(FrameLayout host, FrameLayout shell,
