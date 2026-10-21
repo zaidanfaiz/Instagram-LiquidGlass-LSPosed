@@ -25,7 +25,7 @@ final class DevScreenDetector {
     private DevScreenDetector() {}
     private enum Page {
         HOME_OR_REELS, OWN_PROFILE, DIRECT_INBOX, OTHER_PROFILE,
-        DM_CONVERSATION, STORY, UNKNOWN
+        DM_CONVERSATION, REELS_COMMENTS, STORY, UNKNOWN
     }
     private static final WeakHashMap<Activity, Page> CURRENT =
             new WeakHashMap<>();
@@ -48,6 +48,7 @@ final class DevScreenDetector {
             return null;
         if (page == Page.OTHER_PROFILE) return "other-user-profile";
         if (page == Page.DM_CONVERSATION) return "dm-conversation-open";
+        if (page == Page.REELS_COMMENTS) return "reels-comments-overlay";
         if (page == Page.STORY) return "story-viewer";
         if (formerParent != null
                 && (!formerParent.isShown() || formerParent.getAlpha() < .10f))
@@ -89,10 +90,22 @@ final class DevScreenDetector {
         int dmComposer;
         int dmThreadHeader;
         int storyMarker;
+        int commentSheet, commentHeader, commentComposer, commentList;
         Signals(int height) { screenHeight = height; }
     }
 
     private static Page choose(Signals s) {
+        // Bottom-sheet overlays can leave the underlying Home / Reels /
+        // Profile markers attached. Inspect this highest-priority foreground
+        // UI FIRST so the floating pills never cover an open comment sheet.
+        // Two independent signals are required to avoid captions such as
+        // "lihat komentar" accidentally hiding navigation.
+        boolean confirmedComments = (s.commentSheet > 0
+                && (s.commentHeader > 0 || s.commentComposer > 0
+                        || s.commentList > 0))
+                || (s.commentHeader > 0
+                        && (s.commentComposer > 0 || s.commentList > 0));
+        if (confirmedComments) return Page.REELS_COMMENTS;
         int ownCount = (s.own[0] > 0 ? 1 : 0)
                 + (s.own[1] > 0 ? 1 : 0)
                 + (s.own[2] > 0 ? 1 : 0);
@@ -137,6 +150,11 @@ final class DevScreenDetector {
                 CharSequence hint = ((EditText) child).getHint();
                 if (hint != null && hint.length() <= 50) {
                     String value = hint.toString().trim().toLowerCase(Locale.ROOT);
+                    if (value.contains("tambahkan komentar")
+                            || value.contains("add a comment")
+                            || value.contains("tulis komentar")
+                            || value.contains("write a comment"))
+                        found.commentComposer++;
                     if (value.equals("pesan") || value.equals("message")
                             || value.equals("kirim pesan")
                             || value.equals("tulis pesan")
@@ -163,6 +181,26 @@ final class DevScreenDetector {
 
     private static void classifyResource(String id, View v, Signals f) {
         if (id.isEmpty()) return;
+        // Only visible, large foreground comment surfaces count; tiny
+        // comment buttons underneath a Reel must not trigger navigation hide.
+        boolean largePanel = v.getWidth() > f.screenHeight * .12f
+                && v.getHeight() > f.screenHeight * .20f;
+        if ((id.contains("comments_bottom_sheet")
+                || id.contains("comment_bottom_sheet")
+                || id.contains("comment_sheet")
+                || id.contains("comments_container")
+                || id.contains("comments_dialog")
+                || id.contains("comment_thread_container")
+                || id.contains("reel_comments_container"))
+                && largePanel) f.commentSheet++;
+        if ((id.contains("comment_list") || id.contains("comments_list")
+                || id.contains("comment_recycler") || id.contains("comment_thread_list"))
+                && largePanel) f.commentList++;
+        if ((id.contains("comment_composer") || id.contains("comment_input")
+                || id.contains("comment_text_field")
+                || id.contains("comment_edit_text"))
+                && v.getHeight() < f.screenHeight * .30f)
+            f.commentComposer++;
         if (id.contains("edit_profile") || id.contains("profile_edit_button"))
             f.own[0]++;
         if (id.contains("share_profile") || id.contains("profile_share_button"))
@@ -190,6 +228,9 @@ final class DevScreenDetector {
     }
 
     private static void classifyLabel(String label, Signals f) {
+        if (label.equals("komentar") || label.equals("comments")
+                || label.equals("komentar reels") || label.equals("reels comments"))
+            f.commentHeader++;
         if (label.equals("edit profil") || label.equals("edit profile")) f.own[0]++;
         else if (label.equals("bagikan profil") || label.equals("share profile"))
             f.own[1]++;
