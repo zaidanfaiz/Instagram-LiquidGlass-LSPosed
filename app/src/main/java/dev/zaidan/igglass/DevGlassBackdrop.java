@@ -87,7 +87,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         started=true;
         ViewTreeObserver obs=host.getViewTreeObserver();
         if(obs.isAlive()) obs.addOnScrollChangedListener(this);
-        DevFileLog.note("r15 glass-frost: sample=30%, GPU radius=14dp, blend=84%; Reels capture OFF");
+        DevFileLog.note("r16 glass-frost: stable scrolling 62-84% opacity; ignore tiny recycled video intersections; Reels capture OFF");
     }
 
     void setEnabled(boolean shouldEnable) {
@@ -135,9 +135,12 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         if(enabled && !scene.isReelsActive()) {
             // Fade an out-of-date sample but avoid a fully invisible pill.
             // The next real feed sample is queued without starvation.
-            if (main.getDrawable() != null) main.setAlpha(.18f);
+            // Keep a still-recognizable frosted material during scrolling.
+            // r15 reduced alpha to 18% every time the feed scrolled, which
+            // looked as though blur kept switching OFF even on photos.
+            if (main.getDrawable() != null) main.setAlpha(.62f);
             if (search != null && search.getDrawable() != null)
-                search.setAlpha(.18f);
+                search.setAlpha(.62f);
             request(170);
         }
     }
@@ -208,8 +211,10 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                 return;
             }
             if(!isUsable(combined)) {
-                clear(main);
-                clear(search);
+                // A flat-colored feed segment is still a valid backing
+                // situation. Do not zero a previously verified blur because
+                // one transient capture had little luminance variation.
+                DevFileLog.note("r16 frost frame rejected: low-detail/unusable");
                 return;
             }
             Bitmap x=crop(combined,mainR,bounds);
@@ -278,8 +283,19 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                                            int depth,int[] budget) {
         if(budget[0]--<=0||depth>19||v.getVisibility()!=View.VISIBLE)return false;
         if(v instanceof SurfaceView||v instanceof TextureView) {
-            Rect rect=relativeRect(v,hostXY);
-            return Rect.intersects(rect,target);
+            // Instagram keeps recycled video layers in the View tree and
+            // even a 1px intersection previously wiped out all valid blur.
+            // The surface must actually be visible AND cover a substantial
+            // portion of the glass's sample strip to suspend capture.
+            if(!v.isShown() || v.getWidth() <= 0 || v.getHeight() <= 0)
+                return false;
+            Rect visible=new Rect();
+            if(!v.getGlobalVisibleRect(visible)) return false;
+            visible.offset(-hostXY[0],-hostXY[1]);
+            if(!visible.intersect(target)) return false;
+            long overlap=(long)visible.width()*visible.height();
+            long strip=(long)target.width()*target.height();
+            return strip>0 && overlap*100 >= strip*18;
         }
         if(v instanceof ViewGroup) {
             ViewGroup g=(ViewGroup)v;
