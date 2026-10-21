@@ -2,6 +2,59 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Latest diagnostic: **0.1-dev-r16 — Search click fix + stable frosted scrolling**
+
+From the device's 22:55:49–22:56:54 r15 log:
+- Verified bitmap sampling was active (398×54, 84%, 14dp) but repeatedly
+  suspended after `live video detected`. It is intentional that active
+  Reels are never sampled, however the fallback also triggered on small
+  recycled video SurfaceViews touching the sample strip.
+- On each feed scroll the old sample was faded to **18%**, then restored
+  to 84% only on new samples. This looked like blur toggling OFF.
+- The separate Search glass circle only called `selectSearch()`, an
+  **animation/state change with no actual Instagram navigation click**.
+- Instagram still has 5 native tab destinations; the glass UI displays 4
+  in the main capsule and Search in a detached circle. Changing Instagram's
+  own *horizontal page-swipe order* requires a separate pager hook and is
+  NOT performed in r16.
+
+### Changes
+
+1. Search glass's top touch interceptor delegates one tap to the **real
+   Instagram Search target** via existing `clickRealTab()`, with a native
+   touch dispatch fallback. It now logs `r16 native Search click handled=...`.
+   The glass selection is animated only after the delegated action reports
+   success. This requires on-device verification because the original
+   Search View had been detached from the 5-item native row.
+2. While scrolling a static photo, keep a 62%-opacity cached blurred
+   background instead of fading every frame down to 18%; newly verified
+   captures return to the prior 84% blend.
+3. Reject **tiny / non-visible** overlap with recycled SurfaceView/TextureView
+   layers. Only visible video covering at least 18% of the sample band stops
+   capturing; live full-size Reels are always excluded.
+4. A low-information frame does not delete an already-good capture; it
+   is kept until a valid new sample is available.
+5. The r15 fullscreen feed-margin reconciliation, r14 input shield,
+   navigation routing and r12 Reels video-freeze safeguards are left intact.
+
+### Acceptance test
+
+Open Home, scroll image posts, and verify the glass softens content rather
+than becoming fully clear with every movement. Test the separate Search
+button from Home and Reels; note whether a genuine Search/Explore page opens,
+not only a selection glow. Test native taps and drag Home → Reels → DM →
+own Profile, and test Reels comment-sheet closing/playback. Attach the newest
+`Downloads/IGGlass-0.1-dev-*.txt`. If `Search click handled=true`
+but Explore did not open, the native tab logic is dependent on its original
+5-child hierarchy and requires the next architectural fix: retain the full
+native tab row in place and render the custom four-plus-one layout separately.
+
+**Limitation:** r16 does not provide full iOS compositor-quality refraction.
+Background from a live video SurfaceView is still not captured; the glass
+remains transparent there to preserve correct Reels playback. Reordering
+Instagram's internal swipe destinations is also not part of this targeted
+bug-fix build.
+
 ## Latest experimental test: **0.1-dev-r15 — fullscreen margin reconciliation + visible frost**
 
 Device feedback after r14: **both the Home feed and Reels still show an
