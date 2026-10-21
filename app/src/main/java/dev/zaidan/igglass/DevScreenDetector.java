@@ -185,13 +185,18 @@ final class DevScreenDetector {
         // comment buttons underneath a Reel must not trigger navigation hide.
         boolean largePanel = v.getWidth() > f.screenHeight * .12f
                 && v.getHeight() > f.screenHeight * .20f;
+        String className = v.getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        if ((className.contains("comment") && (className.contains("sheet")
+                        || className.contains("panel") || className.contains("dialog")))
+                && largePanel) f.commentSheet++;
         if ((id.contains("comments_bottom_sheet")
                 || id.contains("comment_bottom_sheet")
                 || id.contains("comment_sheet")
                 || id.contains("comments_container")
                 || id.contains("comments_dialog")
                 || id.contains("comment_thread_container")
-                || id.contains("reel_comments_container"))
+                || id.contains("reel_comments_container")
+                || (id.contains("bottom_sheet") && !id.contains("tab_bar")))
                 && largePanel) f.commentSheet++;
         if ((id.contains("comment_list") || id.contains("comments_list")
                 || id.contains("comment_recycler") || id.contains("comment_thread_list"))
