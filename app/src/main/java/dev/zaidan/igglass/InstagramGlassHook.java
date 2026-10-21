@@ -160,6 +160,16 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
         void onTouch(MotionEvent ev) {
             if (!resumed || scene == null || !scene.attached()) return;
+            // dispatchTouchEvent sees ALL Activity touches, including taps
+            // inside a foreground comment sheet. Never interpret a modal
+            // comment tap as a click on the visually-overlapped native nav.
+            if (DevScreenDetector.hiddenBecause(activity, scene.nav,
+                    scene.sourceParent) != null) {
+                scene.show(false);
+                if (frost != null) frost.setEnabled(false);
+                decor.postDelayed(this::sync, 240);
+                return;
+            }
             scene.onTouch(ev);
             if (frost != null) {
                 frost.setEnabled(!scene.isReelsActive()
