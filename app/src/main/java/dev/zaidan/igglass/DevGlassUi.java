@@ -3,6 +3,8 @@ package dev.zaidan.igglass;
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
@@ -21,7 +23,7 @@ import java.util.Locale;
  * circle. No bitmap screenshots, Canvas capture or 12fps CPU blur loops.
  */
 final class DevGlassUi {
-    static final int BOTTOM_MARGIN_DP = 26;
+    static final int BOTTOM_MARGIN_DP = 44;
     private static final int SIDE_DP = 15;
     private static final int GAP_DP = 12;
     private static final int HIGHLIGHT_ANIM_MS = 230;
@@ -46,6 +48,8 @@ final class DevGlassUi {
         private int activeIndex = 0;
         private boolean selectionSearch;
         private int previousLensWidth;
+        private boolean dragging;
+        private long lastSlideAt;
 
         Scene(FrameLayout host, ViewGroup sourceParent,
               ViewGroup nav, int oldIndex, ViewGroup.LayoutParams originalNavParams,
@@ -87,7 +91,8 @@ final class DevGlassUi {
 
         void onTouch(MotionEvent ev) {
             if (ev == null || ev.getActionMasked() != MotionEvent.ACTION_UP
-                    || mainPill.getVisibility() != View.VISIBLE) return;
+                    || mainPill.getVisibility() != View.VISIBLE
+                    || System.currentTimeMillis() - lastSlideAt < 180) return;
             final float rawX = ev.getRawX();
             final float rawY = ev.getRawY();
             if (searchPill != null && inside(searchPill, rawX, rawY)) {
@@ -135,7 +140,7 @@ final class DevGlassUi {
         }
 
         void syncSelection() {
-            if (!attached()) return;
+            if (!attached() || dragging) return;
             if (search != null && isSelected(search, 0)) {
                 if (!selectionSearch) selectSearch();
                 return;
@@ -211,6 +216,71 @@ final class DevGlassUi {
             }
         }
 
+        void slideStart(float localX) {
+            dragging = true;
+            lens.animate().cancel();
+            lens.setAlpha(1f);
+            slideMove(localX);
+            DevFileLog.note("gesture: glass selection drag START");
+        }
+
+        void slideMove(float localX) {
+            if (!dragging || lens == null || nav.getWidth() == 0) return;
+            float desiredX = localX - lens.getWidth() / 2f;
+            float low = nav.getLeft() + dp(nav, 4);
+            float high = nav.getLeft() + nav.getWidth() - lens.getWidth()
+                    - dp(nav, 4);
+            lens.setX(Math.max(low, Math.min(desiredX, high)));
+        }
+
+        void slideEnd(float localX) {
+            if (!dragging) return;
+            dragging = false;
+            lastSlideAt = System.currentTimeMillis();
+            int index = indexAt(localX);
+            selectMain(index, true);
+            boolean activated = clickRealTab(nav.getChildAt(index), 0);
+            if (mainFx != null) mainFx.pulse(localX, mainPill.getHeight() / 2f);
+            DevFileLog.note("gesture: glass selection drag END index=" + index
+                    + " nativeClick=" + activated);
+        }
+
+        void slideCancel() {
+            dragging = false;
+            lastSlideAt = System.currentTimeMillis();
+            positionLens(true);
+            DevFileLog.note("gesture: glass selection drag CANCEL");
+        }
+
+        private int indexAt(float localX) {
+            float x = localX - nav.getLeft();
+            int nearest = 0;
+            float smallest = Float.MAX_VALUE;
+            for (int i = 0; i < nav.getChildCount(); i++) {
+                View v = nav.getChildAt(i);
+                float mid = (v.getLeft() + v.getRight()) / 2f;
+                float diff = Math.abs(x - mid);
+                if (diff < smallest) {
+                    smallest = diff;
+                    nearest = i;
+                }
+            }
+            return nearest;
+        }
+
+        private static boolean clickRealTab(View view, int depth) {
+            if (view == null || depth > 5) return false;
+            if (view.hasOnClickListeners()) return view.performClick();
+            if (view instanceof ViewGroup) {
+                ViewGroup g = (ViewGroup) view;
+                for (int i = 0; i < g.getChildCount(); i++) {
+                    if (clickRealTab(g.getChildAt(i), depth + 1)) return true;
+                }
+            }
+            if (view.isClickable()) return view.performClick();
+            return false;
+        }
+
         void removeAndRestore() {
             try {
                 if (search != null) {
@@ -252,11 +322,13 @@ final class DevGlassUi {
         int originalIndex = oldParent.indexOfChild(nav);
         if (originalIndex < 0) return null;
         ViewGroup.LayoutParams oldParams = nav.getLayoutParams();
-        boolean dark = (nav.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        boolean dark = nativeBackgroundIsDark(nav);
+        DevFileLog.note("theme=" + (dark ? "DARK" : "LIGHT")
+                + " detected from Instagram native navbar background");
 
         // Single native navigation instance: detach once, preserve all listeners.
-        FrameLayout main = createPill(activity, height, dark);
+        DevGesturePill main = new DevGesturePill(activity);
+        stylePill(main, activity, height, dark);
         View lens = createLens(activity, dark);
         main.addView(lens, new FrameLayout.LayoutParams(dp(nav, 48),
                 height - dp(nav, 8), Gravity.TOP | Gravity.LEFT));
@@ -265,7 +337,6 @@ final class DevGlassUi {
         ViewGroup.LayoutParams searchOriginalParams = null;
         int searchIndex = -1;
         FrameLayout searchShell = null;
-        boolean relocated = false;
         try {
             oldParent.removeView(nav);
             // Clearing only the original bar's full-coverage backgrounds keeps
@@ -292,17 +363,29 @@ final class DevGlassUi {
                 host.addView(searchShell, searchLp);
             }
             FrameLayout.LayoutParams mainLp = new FrameLayout.LayoutParams(
-                    -1, height, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                    -1, height, Gravity.BOTTOM | Gravity.LEFT);
             mainLp.leftMargin = side;
             mainLp.rightMargin = searchShell == null
                     ? side : side + height + gap;
             mainLp.bottomMargin = dp(nav, BOTTOM_MARGIN_DP);
             host.addView(main, mainLp);
-            relocated = true;
             Scene scene = new Scene(host, oldParent, nav, originalIndex,
                     oldParams, main, searchShell, search, searchOriginalParams,
                     searchIndex, lens, height, dark);
+            main.setSlideListener(new DevGesturePill.SlideListener() {
+                @Override public void onSlideStart(float x) { scene.slideStart(x); }
+                @Override public void onSlideMove(float x) { scene.slideMove(x); }
+                @Override public void onSlideEnd(float x) { scene.slideEnd(x); }
+                @Override public void onSlideCancel() { scene.slideCancel(); }
+            });
             main.post(() -> scene.positionLens(false));
+            main.post(() -> {
+                DevFileLog.note("pill geometry mainX=" + main.getLeft()
+                        + " mainW=" + main.getWidth()
+                        + " searchX=" + (scene.searchPill == null
+                              ? -1 : scene.searchPill.getLeft())
+                        + " glassBottom=" + (main.getTop() + main.getHeight()));
+            });
             DevFileLog.note("glass installed buttons=" + nav.getChildCount()
                     + "; search separated=" + (searchShell != null)
                     + "; height=" + height + "px; raised=" + BOTTOM_MARGIN_DP + "dp");
@@ -337,17 +420,23 @@ final class DevGlassUi {
     private static FrameLayout createPill(Activity activity, int height,
                                           boolean dark) {
         FrameLayout shell = new FrameLayout(activity);
+        stylePill(shell, activity, height, dark);
+        return shell;
+    }
+
+    private static void stylePill(FrameLayout shell, Activity activity,
+                                  int height, boolean dark) {
         shell.setClipChildren(false);
         shell.setClipToPadding(false);
-        shell.setElevation(dp(shell, 13));
+        shell.setElevation(dp(shell, 11));
         shell.setClickable(false);
 
         GradientDrawable body = new GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                dark ? new int[] {0xD048586B, 0xAD17212F, 0xB8344354}
-                     : new int[] {0xD5FFFFFF, 0xA7DDECF8, 0xC9FFFFFF});
+                dark ? new int[] {0x784D6179, 0x55333E52, 0x76233047}
+                     : new int[] {0x92FFFFFF, 0x65D3E6F5, 0x85EAF4FF});
         body.setCornerRadius(height / 2f);
-        body.setStroke(dp(shell, 1), dark ? 0xC4E8F5FF : 0xE8FFFFFF);
+        body.setStroke(dp(shell, 1), dark ? 0xA4D5E6F9 : 0xBFFFFFFF);
         shell.setBackground(body);
         shell.setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View view, Outline outline) {
@@ -360,27 +449,41 @@ final class DevGlassUi {
         View shine = new View(activity);
         GradientDrawable gloss = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x43FFFFFF, 0x12FFFFFF, 0x00FFFFFF});
+                new int[] {0x26FFFFFF, 0x09FFFFFF, 0x00FFFFFF});
         gloss.setCornerRadius(height / 2f);
         shine.setBackground(gloss);
         shine.setClickable(false);
         shell.addView(shine, new FrameLayout.LayoutParams(-1, -1));
         DevLiquidFx ripple = new DevLiquidFx(activity);
         shell.addView(ripple, new FrameLayout.LayoutParams(-1, -1));
-        return shell;
     }
 
     private static View createLens(Activity activity, boolean dark) {
         View lens = new View(activity);
         GradientDrawable halo = new GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                dark ? new int[] {0xB3ACCADE, 0x725D7798, 0xA084A1BE}
-                     : new int[] {0xD5FFFFFF, 0x8FA9D7F9, 0xBBFFFFFF});
+                dark ? new int[] {0x969CC2E3, 0x6C5F89AD, 0x866E9CBD}
+                     : new int[] {0xC8FFFFFF, 0x79B2DAFC, 0xAAFFFFFF});
         halo.setCornerRadius(dp(lens, 40));
         halo.setStroke(dp(lens, 1), dark ? 0xCFF8FDFF : 0xF0FFFFFF);
         lens.setBackground(halo);
         lens.setClickable(false);
         return lens;
+    }
+
+    private static boolean nativeBackgroundIsDark(View nav) {
+        Drawable drawable = nav.getBackground();
+        if (drawable instanceof ColorDrawable) {
+            int color = ((ColorDrawable) drawable).getColor();
+            double luma = (0.2126 * Color.red(color)
+                    + 0.7152 * Color.green(color)
+                    + 0.0722 * Color.blue(color)) / 255.0;
+            DevFileLog.note("native tab_bar background=#"
+                    + Integer.toHexString(color) + " luma=" + luma);
+            return luma < 0.50;
+        }
+        return (nav.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     private static int searchIndex(ViewGroup nav) {
