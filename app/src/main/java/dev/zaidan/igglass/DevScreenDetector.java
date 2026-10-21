@@ -50,8 +50,10 @@ final class DevScreenDetector {
         View decor = activity.getWindow().getDecorView();
         if (decor instanceof ViewGroup) {
             String viewName = scanViewIds((ViewGroup) decor, decor, 0,
-                    new int[] {450});
+                    new int[] {700});
             if (viewName != null) return viewName;
+            String page = screenSignature((ViewGroup) decor);
+            if (page != null) return page;
         }
         return null;
     }
@@ -152,6 +154,70 @@ final class DevScreenDetector {
             }
         }
         return null;
+    }
+
+    /**
+     * Instagram 452 does not expose a standard support fragment manager.
+     * Detect the visible page from non-sensitive resource entry names only.
+     * Require multiple independent markers to avoid hiding feed/Reels when
+     * an embedded recommendation tile also mentions "profile".
+     */
+    private static String screenSignature(ViewGroup decor) {
+        int[] found = new int[5]; // profile header, profile grid, edit, DM, inbox
+        StringBuilder report = new StringBuilder();
+        collectSignature(decor, 0, new int[] {1250}, found, report);
+        boolean profile = (found[0] > 0 && (found[1] > 0 || found[2] > 0))
+                || (found[1] > 0 && found[2] > 0);
+        boolean inbox = found[3] > 0 && found[4] > 0;
+        if (inbox) {
+            DevFileLog.note("screen signature direct inbox: " + report);
+            return "native-direct-inbox";
+        }
+        if (profile) {
+            DevFileLog.note("screen signature profile detail: " + report);
+            return "native-profile-detail";
+        }
+        return null;
+    }
+
+    private static void collectSignature(ViewGroup group, int depth,
+                                          int[] budget, int[] found,
+                                          StringBuilder report) {
+        if (depth > 17 || budget[0] <= 0) return;
+        for (int i = 0; i < group.getChildCount() && budget[0] > 0; i++) {
+            View child = group.getChildAt(i);
+            budget[0]--;
+            if (!child.isShown() || child.getAlpha() < .1f
+                    || child.getWidth() == 0 || child.getHeight() == 0) continue;
+            String key = DevGlassUi.resourceName(child)
+                    .toLowerCase(Locale.ROOT);
+            int category = -1;
+            if (key.contains("profile_header")
+                    || key.contains("user_profile_header")) category = 0;
+            else if (key.contains("profile_grid")
+                    || key.contains("profile_tab_content")
+                    || key.contains("profile_media_grid")) category = 1;
+            else if (key.contains("edit_profile")
+                    || key.contains("profile_edit_button")) category = 2;
+            else if (key.contains("direct_inbox")
+                    || key.contains("direct_thread_list")
+                    || key.contains("direct_message_list")) category = 3;
+            else if (key.contains("inbox_tab")
+                    || key.contains("direct_inbox_header")
+                    || key.contains("direct_inbox_list")
+                    || key.contains("message_inbox")) category = 4;
+            if (category >= 0) {
+                found[category]++;
+                if (report.length() < 170) {
+                    if (report.length() != 0) report.append(",");
+                    report.append(key);
+                }
+            }
+            if (child instanceof ViewGroup) {
+                collectSignature((ViewGroup) child, depth + 1,
+                        budget, found, report);
+            }
+        }
     }
 
     private static boolean flag(Object object, String method) {
