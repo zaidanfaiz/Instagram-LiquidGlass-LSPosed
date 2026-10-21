@@ -41,6 +41,8 @@ final class DevGlassUi {
         final ViewGroup.LayoutParams originalSearchParams;
         final int originalSearchIndex;
         final float originalSearchAlpha;
+        final float originalNavAlpha;
+        final DevNavGlyphs glyphs;
         final View lens;
         final DevLiquidFx mainFx;
         final DevLiquidFx searchFx;
@@ -56,7 +58,8 @@ final class DevGlassUi {
               ViewGroup nav, int oldIndex, ViewGroup.LayoutParams originalNavParams,
               FrameLayout mainPill, FrameLayout searchPill, View search,
               ViewGroup.LayoutParams originalSearchParams, int originalSearchIndex,
-              float originalSearchAlpha, View lens, int barHeight, boolean dark) {
+              float originalSearchAlpha, float originalNavAlpha,
+              DevNavGlyphs glyphs, View lens, int barHeight, boolean dark) {
             this.host = host;
             this.sourceParent = sourceParent;
             this.nav = nav;
@@ -68,6 +71,8 @@ final class DevGlassUi {
             this.originalSearchParams = originalSearchParams;
             this.originalSearchIndex = originalSearchIndex;
             this.originalSearchAlpha = originalSearchAlpha;
+            this.originalNavAlpha = originalNavAlpha;
+            this.glyphs = glyphs;
             this.lens = lens;
             this.mainFx = effectInside(mainPill);
             this.searchFx = effectInside(searchPill);
@@ -143,18 +148,12 @@ final class DevGlassUi {
 
         void syncSelection() {
             if (!attached() || dragging) return;
-            // Instagram may restore native tab selection backgrounds after a
-            // scroll or page switch. This previously turned CLEAR glass back
-            // into solid white/black. Re-clear only full-sized panels.
-            if (nav.getBackground() != null) nav.setBackground(null);
-            for (int i=0; i<nav.getChildCount(); i++) {
-                removeOpaqueButtonSurfaces(nav.getChildAt(i),barHeight,0,
-                        "tab-sync-" + i);
-            }
-            if (search != null) {
-                removeOpaqueButtonSurfaces(search,barHeight,0,"search-sync");
-                if (search.getAlpha() != 0f) search.setAlpha(0f);
-            }
+            // The genuine Instagram row remains the sole clickable target,
+            // but its built-in opaque painting is never allowed to cover the
+            // clear glass. The overlay draws glyphs separately above it.
+            if (nav.getAlpha() != 0f) nav.setAlpha(0f);
+            if (search != null && search.getAlpha() != 0f)
+                search.setAlpha(0f);
             if (search != null && isSelected(search, 0)) {
                 if (!selectionSearch) selectSearch();
                 return;
@@ -194,6 +193,7 @@ final class DevGlassUi {
         void selectMain(int index, boolean animated) {
             selectionSearch = false;
             activeIndex = Math.max(0, Math.min(nav.getChildCount() - 1, index));
+            glyphs.activate(activeIndex);
             updateVideoGlass(activeIndex == 1);
             if (lens != null) {
                 lens.animate().alpha(1f).setDuration(140).start();
@@ -342,6 +342,7 @@ final class DevGlassUi {
 
         void removeAndRestore() {
             try {
+                nav.setAlpha(originalNavAlpha);
                 if (search != null) {
                     search.setAlpha(originalSearchAlpha);
                     if (search.getParent() instanceof ViewGroup) {
@@ -382,6 +383,7 @@ final class DevGlassUi {
         int originalIndex = oldParent.indexOfChild(nav);
         if (originalIndex < 0) return null;
         ViewGroup.LayoutParams oldParams = nav.getLayoutParams();
+        float navOriginalAlpha = nav.getAlpha();
         // The optical material is ALWAYS neutral/clear regardless of both
         // Instagram's dark/light settings and the current post/video colors.
         // 'dark' remains for legacy backdrop capture fill only.
@@ -402,10 +404,10 @@ final class DevGlassUi {
         FrameLayout searchShell = null;
         try {
             oldParent.removeView(nav);
-            // Clearing only the original bar's full-coverage backgrounds keeps
-            // native icons, badges, touch targets and child stateful drawables.
-            clearOldRowBackground(nav, nav.getWidth(), height, 0);
-            // The row remains the real, clickable Instagram tab container.
+            // Do not mutate Instagram's own drawable hierarchy at all.
+            // Its entire original row becomes transparent VISUALLY only;
+            // every original child View, touch handler and accessibility
+            // relationship stays attached and functional.
             main.addView(nav, new FrameLayout.LayoutParams(-1, -1));
             int side = dp(nav, SIDE_DP);
             int gap = dp(nav, GAP_DP);
@@ -416,10 +418,8 @@ final class DevGlassUi {
                 searchOriginalParams = search.getLayoutParams();
                 searchOriginalAlpha = search.getAlpha();
                 nav.removeViewAt(searchIndex);
-                // 452 gives this tab its own opaque selection surface.
-                // Moving it to a circular overlay without removing that
-                // full-size backing makes the Search pill solid white.
-                removeOpaqueButtonSurfaces(search, height, 0, "search");
+                // Keep Instagram's genuine Search click target without its
+                // internal opaque rendering; custom magnifier is on top.
                 searchShell = createPill(activity, height, dark);
                 // Move exactly one genuine Instagram View, never forge clicks.
                 searchShell.addView(search, new FrameLayout.LayoutParams(
@@ -436,14 +436,12 @@ final class DevGlassUi {
                 searchLp.bottomMargin = dp(nav, BOTTOM_MARGIN_DP);
                 host.addView(searchShell, searchLp);
             }
-            // Native tab items can each own a full-height dark backing,
-            // even after the bar's parent background has been cleared.
-            // Strip ONLY non-icon ViewGroup surfaces so the glass behind the
-            // original clickable icons is actually visible.
-            for (int n = 0; n < nav.getChildCount(); n++) {
-                removeOpaqueButtonSurfaces(nav.getChildAt(n), height, 0,
-                        "tab-" + n);
-            }
+            // Fully hide native rendering to eliminate Instagram's custom
+            // opaque onDraw paths (setBackground(null) did not catch them).
+            // Alpha does not disable the original View's touch dispatch.
+            nav.setAlpha(0f);
+            DevNavGlyphs glyphs = new DevNavGlyphs(activity, nav);
+            main.addView(glyphs, new FrameLayout.LayoutParams(-1, -1));
             FrameLayout.LayoutParams mainLp = new FrameLayout.LayoutParams(
                     -1, height, Gravity.BOTTOM | Gravity.LEFT);
             mainLp.leftMargin = side;
@@ -453,7 +451,8 @@ final class DevGlassUi {
             host.addView(main, mainLp);
             Scene scene = new Scene(host, oldParent, nav, originalIndex,
                     oldParams, main, searchShell, search, searchOriginalParams,
-                    searchIndex, searchOriginalAlpha, lens, height, dark);
+                    searchIndex, searchOriginalAlpha, navOriginalAlpha,
+                    glyphs, lens, height, dark);
             main.setSlideListener(new DevGesturePill.SlideListener() {
                 @Override public void onSlideStart(float x) { scene.slideStart(x); }
                 @Override public void onSlideMove(float x) { scene.slideMove(x); }
@@ -476,6 +475,7 @@ final class DevGlassUi {
         } catch (Throwable error) {
             DevFileLog.note("glass install error: " + error.getClass().getSimpleName());
             try {
+                nav.setAlpha(navOriginalAlpha);
                 if (search != null && search.getParent() instanceof ViewGroup) {
                     search.setAlpha(searchOriginalAlpha);
                     ((ViewGroup) search.getParent()).removeView(search);
