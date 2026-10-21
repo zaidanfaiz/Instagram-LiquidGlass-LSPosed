@@ -57,12 +57,21 @@ final class DevViewportGuard {
             scene.mainPill.getLocationOnScreen(mainXY);
             int navBottom = -1;
             int topInset = -1;
+            int windowW = -1;
+            int windowH = -1;
+            if (Build.VERSION.SDK_INT >= 30) {
+                Rect frame = activity.getWindowManager()
+                        .getCurrentWindowMetrics().getBounds();
+                windowW = frame.width();
+                windowH = frame.height();
+            }
             WindowInsets insets = decor.getRootWindowInsets();
             if (Build.VERSION.SDK_INT >= 30 && insets != null) {
                 navBottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
                 topInset = insets.getInsets(WindowInsets.Type.statusBars()).top;
             }
             DevFileLog.note("viewport [" + reason + "]"
+                    + " windowBounds=" + windowW + "x" + windowH
                     + " decor=" + decor.getWidth() + "x" + decor.getHeight()
                     + " content=" + host.getWidth() + "x" + host.getHeight()
                     + " contentXY=" + xy[0] + "," + xy[1]
