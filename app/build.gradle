@@ -6,8 +6,8 @@ android {
         applicationId 'dev.zaidan.igglass'
         minSdk 29
         targetSdk 28
-        versionCode 24
-        versionName '0.1-dev-r15-fullscreen-visible-blur'
+        versionCode 25
+        versionName '0.1-dev-r16-search-stable-frost'
     }
 }
 dependencies {
