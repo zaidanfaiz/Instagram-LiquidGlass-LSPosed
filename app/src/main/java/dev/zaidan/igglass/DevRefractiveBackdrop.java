@@ -190,6 +190,7 @@ final class DevRefractiveBackdrop extends View {
     private Bitmap snapshot;
     private boolean disabled;
     private boolean videoMode;
+    private boolean hasVerifiedVideoFrame;
     private float opticalAlpha;
     private boolean loggedShader;
     private int widthAtLastShaderUpdate;
@@ -214,7 +215,20 @@ final class DevRefractiveBackdrop extends View {
     }
 
     void setSnapshot(Bitmap image) {
+        setSnapshot(image, false);
+    }
+
+    void setVideoSnapshot(Bitmap image) {
+        setSnapshot(image, true);
+    }
+
+    private void setSnapshot(Bitmap image, boolean fromRealVideoSurface) {
         if (image == null || image.isRecycled()) return;
+        if (videoMode && !fromRealVideoSurface) {
+            image.recycle();
+            return;
+        }
+        if (fromRealVideoSurface) hasVerifiedVideoFrame = true;
         // Videos drawn on SurfaceView are absent from View.draw(Canvas).
         // Uniform captures are unreliable and must NOT become black/white
         // pills. In that case leave a clear glass rim drawn by DevGlassSurface.
@@ -226,7 +240,7 @@ final class DevRefractiveBackdrop extends View {
         float opacity = disabled ? 0f : .48f * confidence;
         if (luma > .81f) opacity *= .86f;
         opticalAlpha = opacity;
-        setAlpha(videoMode ? 0f : opacity);
+        setAlpha(videoMode && !hasVerifiedVideoFrame ? 0f : opacity);
         Bitmap previous = snapshot;
         snapshot = image;
         invalidate();
@@ -246,11 +260,12 @@ final class DevRefractiveBackdrop extends View {
     void setVideoMode(boolean enabled) {
         if (videoMode == enabled) return;
         videoMode = enabled;
-        // Reels commonly use SurfaceView, absent from software View.draw.
-        // Never display a wrongly captured (possibly white) static image.
-        setAlpha(videoMode ? 0f : opticalAlpha);
+        hasVerifiedVideoFrame = false;
+        // Entering or leaving Reels clears OLD screenshot visibility until
+        // a real SurfaceView PixelCopy (Reels) or View.draw (feed) arrives.
+        setAlpha(0f);
         DevFileLog.note("optics video mode=" + videoMode
-                + "; base alpha always 0%");
+                + "; awaiting matching backdrop sample");
     }
 
     private static float[] analyze(Bitmap b) {
