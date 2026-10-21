@@ -291,8 +291,12 @@ final class DevVideoGlassCapture {
         if(x>=frame.getWidth()||y>=frame.getHeight())return;
         int w=Math.min(frame.getWidth()-x,Math.max(1,Math.round(area.width()*SCALE)));
         int h=Math.min(frame.getHeight()-y,Math.max(1,Math.round(area.height()*SCALE)));
-        Bitmap cropped=Bitmap.createBitmap(frame,x,y,w,h).copy(
-                Bitmap.Config.ARGB_8888,false);
+        Bitmap part=Bitmap.createBitmap(frame,x,y,w,h);
+        // The original PixelCopy destination is recycled on callback exit.
+        // Normal subrect crops are independent; only copy if Bitmap API
+        // returns the SAME source object (avoids 2x bitmap allocation).
+        Bitmap cropped=part==frame
+                ? frame.copy(Bitmap.Config.ARGB_8888,false) : part;
         android.graphics.drawable.Drawable old=dest.getDrawable();
         dest.setImageBitmap(cropped);
         dest.setAlpha(OPACITY);
@@ -335,11 +339,13 @@ final class DevVideoGlassCapture {
                 if(lum>.982)almostWhite++;
             }
         }
-        if(samples==0 || almostBlack>=samples*.98
-                || almostWhite>=samples*.98)return false;
+        if(samples==0 || almostBlack>=samples*.995
+                || almostWhite>=samples*.995)return false;
         double avg=mean/samples;
         double stdev=Math.sqrt(Math.max(0,square/samples-avg*avg));
-        return avg>.023&&avg<.975 && stdev>.016;
+        // Dark/low-contrast Reels are genuine video, not necessarily a
+        // failed copy. Permit detailed dark frames without a white fallback.
+        return avg>.012&&avg<.988 && stdev>.008;
     }
 
     private static SurfaceCandidate findVideoSource(ViewGroup host,Rect requested) {
