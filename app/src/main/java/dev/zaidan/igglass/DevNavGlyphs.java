@@ -41,12 +41,12 @@ final class DevNavGlyphs extends View {
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         setWillNotDraw(false);
         backing.setStyle(Paint.Style.STROKE);
-        backing.setStrokeWidth(3.4f * density);
+        backing.setStrokeWidth(2.6f * density);
         backing.setStrokeJoin(Paint.Join.ROUND);
         backing.setStrokeCap(Paint.Cap.ROUND);
-        backing.setColor(0xAB0B131D);
+        backing.setColor(0x180B131D);
         foreground.setStyle(Paint.Style.STROKE);
-        foreground.setStrokeWidth(2.1f * density);
+        foreground.setStrokeWidth(2.7f * density);
         foreground.setStrokeJoin(Paint.Join.ROUND);
         foreground.setStrokeCap(Paint.Cap.ROUND);
         foreground.setColor(0xFFF9FCFF);
@@ -69,7 +69,7 @@ final class DevNavGlyphs extends View {
                     + (item.getLeft() + item.getRight()) * .5f;
             float y = nativeTabs.getTop()
                     + (item.getTop() + item.getBottom()) * .5f;
-            float size = Math.min(17.5f * density,
+            float size = Math.min(16.2f * density,
                     Math.min(item.getWidth() * .24f, item.getHeight() * .29f));
             if (size <= 0) continue;
             int saved = canvas.save();
@@ -149,7 +149,6 @@ final class DevNavGlyphs extends View {
     }
 
     private void drawPath(Canvas canvas,Path path) {
-        canvas.drawPath(path,backing);
         canvas.drawPath(path,foreground);
     }
 
@@ -171,7 +170,6 @@ final class DevNavGlyphs extends View {
     private void drawReels(Canvas canvas,float r) {
         float corner=.34f*r;
         oval.set(-.79f*r,-.73f*r,.79f*r,.73f*r);
-        canvas.drawRoundRect(oval,corner,corner,backing);
         canvas.drawRoundRect(oval,corner,corner,foreground);
         symbol.reset();
         symbol.moveTo(-.23f*r,-.41f*r);
@@ -218,7 +216,6 @@ final class DevNavGlyphs extends View {
             return;
         }
         // Fall back to a legible outline rather than a fake account image.
-        canvas.drawCircle(0,-.36f*r,.34f*r,backing);
         canvas.drawCircle(0,-.36f*r,.34f*r,foreground);
         symbol.reset();
         symbol.moveTo(-.68f*r,.74f*r);
