@@ -40,6 +40,7 @@ final class DevGlassUi {
         final View search;
         final ViewGroup.LayoutParams originalSearchParams;
         final int originalSearchIndex;
+        final float originalSearchAlpha;
         final View lens;
         final DevLiquidFx mainFx;
         final DevLiquidFx searchFx;
@@ -55,7 +56,7 @@ final class DevGlassUi {
               ViewGroup nav, int oldIndex, ViewGroup.LayoutParams originalNavParams,
               FrameLayout mainPill, FrameLayout searchPill, View search,
               ViewGroup.LayoutParams originalSearchParams, int originalSearchIndex,
-              View lens, int barHeight, boolean dark) {
+              float originalSearchAlpha, View lens, int barHeight, boolean dark) {
             this.host = host;
             this.sourceParent = sourceParent;
             this.nav = nav;
@@ -66,6 +67,7 @@ final class DevGlassUi {
             this.search = search;
             this.originalSearchParams = originalSearchParams;
             this.originalSearchIndex = originalSearchIndex;
+            this.originalSearchAlpha = originalSearchAlpha;
             this.lens = lens;
             this.mainFx = effectInside(mainPill);
             this.searchFx = effectInside(searchPill);
@@ -310,6 +312,7 @@ final class DevGlassUi {
         void removeAndRestore() {
             try {
                 if (search != null) {
+                    search.setAlpha(originalSearchAlpha);
                     if (search.getParent() instanceof ViewGroup) {
                         ((ViewGroup) search.getParent()).removeView(search);
                     }
@@ -362,6 +365,7 @@ final class DevGlassUi {
         View search = null;
         ViewGroup.LayoutParams searchOriginalParams = null;
         int searchIndex = -1;
+        float searchOriginalAlpha = 1f;
         FrameLayout searchShell = null;
         try {
             oldParent.removeView(nav);
@@ -377,6 +381,7 @@ final class DevGlassUi {
             if (searchIndex >= 0 && nav.getChildCount() == 5) {
                 search = nav.getChildAt(searchIndex);
                 searchOriginalParams = search.getLayoutParams();
+                searchOriginalAlpha = search.getAlpha();
                 nav.removeViewAt(searchIndex);
                 // 452 gives this tab its own opaque selection surface.
                 // Moving it to a circular overlay without removing that
@@ -386,6 +391,12 @@ final class DevGlassUi {
                 // Move exactly one genuine Instagram View, never forge clicks.
                 searchShell.addView(search, new FrameLayout.LayoutParams(
                         -1, -1, Gravity.CENTER));
+                // Keep the native original Search target fully interactive.
+                // Suppress only its renderer: selected native icon layers
+                // and backgrounds otherwise create a solid WHITE circle.
+                search.setAlpha(0f);
+                searchShell.addView(new DevSearchGlyph(activity),
+                        new FrameLayout.LayoutParams(-1, -1));
                 FrameLayout.LayoutParams searchLp = new FrameLayout.LayoutParams(
                         height, height, Gravity.BOTTOM | Gravity.RIGHT);
                 searchLp.rightMargin = side;
@@ -409,7 +420,7 @@ final class DevGlassUi {
             host.addView(main, mainLp);
             Scene scene = new Scene(host, oldParent, nav, originalIndex,
                     oldParams, main, searchShell, search, searchOriginalParams,
-                    searchIndex, lens, height, dark);
+                    searchIndex, searchOriginalAlpha, lens, height, dark);
             main.setSlideListener(new DevGesturePill.SlideListener() {
                 @Override public void onSlideStart(float x) { scene.slideStart(x); }
                 @Override public void onSlideMove(float x) { scene.slideMove(x); }
@@ -433,6 +444,7 @@ final class DevGlassUi {
             DevFileLog.note("glass install error: " + error.getClass().getSimpleName());
             try {
                 if (search != null && search.getParent() instanceof ViewGroup) {
+                    search.setAlpha(searchOriginalAlpha);
                     ((ViewGroup) search.getParent()).removeView(search);
                 }
                 if (search != null && search.getParent() == null
