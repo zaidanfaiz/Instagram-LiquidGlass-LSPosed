@@ -1,0 +1,122 @@
+name: Publish v0.1.0-beta.1
+
+# Creating this workflow in main triggers ONE release preparation.
+# Manual reruns deliberately fail once the tag exists to avoid silently
+# replacing APKs with a differently signed debug build.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-beta-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: instagram-liquid-glass-beta-1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify, package and prerelease module APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v0.1.0-beta.1
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard against overwriting an existing release
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $RELEASE_TAG already exists. Refusing to replace its signed APK."
+            exit 1
+          fi
+
+      - name: Protect proprietary APK before public visibility
+        run: |
+          set -euo pipefail
+          # An internal analysis release contains the ORIGINAL Instagram
+          # 452 app APK. It MUST NOT be public if the repository opens.
+          if gh release view instagram-452-analysis -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit instagram-452-analysis --draft -R "$GITHUB_REPOSITORY"
+            draft="$(gh api "/repos/$GITHUB_REPOSITORY/releases/tags/instagram-452-analysis" --jq '.draft')"
+            if [[ "$draft" != "true" ]]; then
+              echo "::error::The third-party APK research release is not draft; stopping publication."
+              exit 1
+            fi
+            echo "Verified internal Instagram APK release is now a private draft."
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK 35
+        run: |
+          set -euo pipefail
+          SDKMGR=$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          test -n "$SDKMGR"
+          yes | "$SDKMGR" --licenses >/dev/null || true
+          "$SDKMGR" 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Install Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Prepare compile-only Xposed API 82
+        run: |
+          set -euo pipefail
+          mkdir -p app/libs
+          curl --fail --location --retry 3 --silent --show-error \
+            https://repository-cdn.liferay.com/nexus/content/repositories/gradle-plugins/de/robv/android/xposed/api/82/api-82.jar \
+            -o app/libs/api-82.jar
+          test "$(wc -c < app/libs/api-82.jar)" -gt 20000
+
+      - name: Compile the exact release source
+        run: |
+          set -euo pipefail
+          grep -F "versionName '0.1.0-beta.1'" app/build.gradle
+          gradle --no-daemon :app:assembleDebug
+
+      - name: Verify signed APK and create SHA-256 checksum
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             dist/Instagram-LiquidGlass-v0.1.0-beta.1.apk
+          APKSIGNER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" \
+            -name apksigner -type f | sort | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose \
+            dist/Instagram-LiquidGlass-v0.1.0-beta.1.apk
+          (cd dist && sha256sum Instagram-LiquidGlass-v0.1.0-beta.1.apk > SHA256SUMS.txt)
+          cat dist/SHA256SUMS.txt
+
+      - name: Publish prerelease (repository stays PRIVATE)
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Instagram Liquid Glass v0.1.0-beta.1" \
+            --notes-file RELEASE_NOTES.md \
+            dist/Instagram-LiquidGlass-v0.1.0-beta.1.apk \
+            dist/SHA256SUMS.txt
+
+      - name: Verify release contents
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" \
+            --json tagName,url,isDraft,isPrerelease,assets
+          echo "Verification complete. No repository visibility change was performed."
