@@ -1,3 +1,15 @@
+/*
+ * This class adapts the real rounded-rect SDF refraction + 7-sample
+ * chromatic dispersion shader from QmDeve/AndroidLiquidGlassView.
+ *
+ * Copyright (c) 2025-2026 Donny Yang / QmDeve and contributors.
+ * Original shader: https://github.com/QmDeve/AndroidLiquidGlassView
+ * Licensed under the MIT License; see THIRD_PARTY_NOTICES.md.
+ *
+ * Changes: Android View/LSPosed-adapted BitmapShader input, cached backdrop
+ * instead of an eager onPreDraw RenderNode capture, theme-independent glass
+ * tint, texture confidence gate for SurfaceView video, safe bitmap lifetime.
+ */
 package dev.zaidan.igglass;
 
 import android.content.Context;
@@ -6,169 +18,303 @@ import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.RenderEffect;
+import android.graphics.Rect;
 import android.graphics.RuntimeShader;
 import android.graphics.Shader;
-import android.os.Build;
 import android.view.View;
 
 /**
- * Subtle optical refraction of a CACHED, low-resolution content snapshot.
- *
- * AGSL bends UV coordinates near the edge of a capsule before sampling the
- * underlying image. RenderEffect softens ONLY this backdrop layer; crisp
- * rim, selector and Instagram icons are drawn by other views above it.
- *
- * This approximates the supplied translucent-glass concept. It is not a
- * system compositor behind-window blur or Apple's physically accurate glass.
+ * Physical SDF refraction and chromatic dispersion of a cached feed backdrop.
+ * Never paints opaque white or black when the backdrop cannot be captured.
+ * Uses one stable neutral glass material on every Instagram page and theme.
  */
 final class DevRefractiveBackdrop extends View {
-    private static final String SHADER =
-            "uniform shader u_content;\n"
-          + "uniform float2 u_size;\n"
-          + "uniform float u_dark;\n"
-          + "half4 main(float2 pos) {\n"
-          + "  float2 uv = pos / max(u_size, float2(1.0));\n"
-          + "  float2 delta = uv - 0.5;\n"
-          + "  float edgeX = pow(clamp(abs(delta.x) * 2.0, 0.0, 1.0), 3.0);\n"
-          + "  float edgeY = pow(clamp(abs(delta.y) * 2.0, 0.0, 1.0), 3.0);\n"
-          + "  float bulge = 0.035 * (edgeX + edgeY);\n"
-          + "  float2 bent = pos + delta * bulge * u_size;\n"
-          + "  half4 sampled = u_content.eval(bent);\n"
-          + "  half3 darkTone = sampled.rgb * 0.54 + half3(0.055, 0.065, 0.08);\n"
-          + "  half3 lightTone = sampled.rgb * 0.63 + half3(0.08, 0.09, 0.105);\n"
-          + "  half3 tone = mix(lightTone, darkTone, half(u_dark));\n"
-          + "  return half4(tone, 1.0);\n"
-          + "}\n";
+    private static final String SDF_AGSL =
+            "uniform shader content;\n" +
+            "uniform float2 size;\n" +
+            "uniform float2 offset;\n" +
+            "uniform float4 cornerRadii;\n" +
+            "uniform float refractionHeight;\n" +
+            "uniform float refractionAmount;\n" +
+            "uniform float depthEffect;\n" +
+            "uniform float chromaticAberration;\n" +
+            "\n" +
+            "uniform float contrast;\n" +
+            "uniform float whitePoint;\n" +
+            "uniform float chromaMultiplier;\n" +
+            "\n" +
+            "uniform float3 tintColor;\n" +
+            "uniform float tintAlpha;\n" +
+            "\n" +
+            "const half3 rgbToY = half3(0.2126, 0.7152, 0.0722);\n" +
+            "\n" +
+            "float radiusAt(float2 coord, float4 radii) {\n" +
+            "    if (coord.x >= 0.0) {\n" +
+            "        if (coord.y <= 0.0) return radii.y;\n" +
+            "        else return radii.z;\n" +
+            "    } else {\n" +
+            "        if (coord.y <= 0.0) return radii.x;\n" +
+            "        else return radii.w;\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "float sdRoundedRect(float2 coord, float2 halfSize, float radius) {\n" +
+            "    float2 cornerCoord = abs(coord) - (halfSize - float2(radius));\n" +
+            "    float outside = length(max(cornerCoord, 0.0)) - radius;\n" +
+            "    float inside = min(max(cornerCoord.x, cornerCoord.y), 0.0);\n" +
+            "    return outside + inside;\n" +
+            "}\n" +
+            "\n" +
+            "float safeSign(float value) {\n" +
+            "    return value < 0.0 ? -1.0 : 1.0;\n" +
+            "}\n" +
+            "\n" +
+            "float2 safeNormalize(float2 value, float2 fallback) {\n" +
+            "    float len = length(value);\n" +
+            "    if (len > 0.001) {\n" +
+            "        return value / len;\n" +
+            "    }\n" +
+            "    return fallback;\n" +
+            "}\n" +
+            "\n" +
+            "float2 gradSdRoundedRect(float2 coord, float2 halfSize, float radius) {\n" +
+            "    float2 cornerCoord = abs(coord) - (halfSize - float2(radius));\n" +
+            "    if (cornerCoord.x >= 0.0 || cornerCoord.y >= 0.0) {\n" +
+            "        float2 outside = max(cornerCoord, 0.0);\n" +
+            "        float outsideLength = length(outside);\n" +
+            "        if (outsideLength > 0.001) {\n" +
+            "            return sign(coord) * (outside / outsideLength);\n" +
+            "        }\n" +
+            "        float useX = step(cornerCoord.y, cornerCoord.x);\n" +
+            "        return float2(\n" +
+            "            useX * safeSign(coord.x),\n" +
+            "            (1.0 - useX) * safeSign(coord.y)\n" +
+            "        );\n" +
+            "    } else {\n" +
+            "        float gradX = step(cornerCoord.y, cornerCoord.x);\n" +
+            "        return sign(coord) * float2(gradX, 1.0 - gradX);\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "float circleMap(float x) {\n" +
+            "    return 1.0 - sqrt(1.0 - x * x);\n" +
+            "}\n" +
+            "\n" +
+            "half4 saturateColor(half4 color, float amount) {\n" +
+            "    half3 lin = toLinearSrgb(color.rgb);\n" +
+            "    float y = dot(lin, rgbToY);\n" +
+            "    half3 gray = half3(y);\n" +
+            "    half3 sat = fromLinearSrgb(mix(gray, lin, amount));\n" +
+            "    return half4(sat, color.a);\n" +
+            "}\n" +
+            "\n" +
+            "half4 main(float2 coord) {\n" +
+            "    float2 halfSize = size * 0.5;\n" +
+            "    float2 centeredCoord = (coord + offset) - halfSize;\n" +
+            "    float radius = radiusAt(centeredCoord, cornerRadii);\n" +
+            "\n" +
+            "    float sd = sdRoundedRect(centeredCoord, halfSize, radius);\n" +
+            "    if (-sd >= refractionHeight) {\n" +
+            "        half4 baseColor = content.eval(coord);\n" +
+            "\n" +
+            "        baseColor = saturateColor(baseColor, chromaMultiplier);\n" +
+            "        float3 target = (whitePoint > 0.0) ? float3(1.0) : float3(0.0);\n" +
+            "        baseColor.rgb = mix(baseColor.rgb, target, abs(whitePoint));\n" +
+            "        baseColor.rgb = (baseColor.rgb - 0.5) * (1.0 + contrast) + 0.5;\n" +
+            "\n" +
+            "        half3 tintedRGB = mix(baseColor.rgb, tintColor, tintAlpha);\n" +
+            "        return half4(tintedRGB, baseColor.a);\n" +
+            "    }\n" +
+            "\n" +
+            "    sd = min(sd, 0.0);\n" +
+            "    float d = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;\n" +
+            "    float smoothRadius = max(radius * 1.5, 30.0);\n" +
+            "    float gradRadius = min(smoothRadius, min(halfSize.x, halfSize.y));\n" +
+            "\n" +
+            "    float2 shapeGrad = gradSdRoundedRect(centeredCoord, halfSize, gradRadius);\n" +
+            "    float2 depthGrad = safeNormalize(centeredCoord, shapeGrad);\n" +
+            "    float2 grad = safeNormalize(shapeGrad + depthEffect * depthGrad, shapeGrad);\n" +
+            "\n" +
+            "    float2 refractedCoord = coord + d * grad;\n" +
+            "    float dispersionIntensity = chromaticAberration * ((centeredCoord.x * centeredCoord.y) / (halfSize.x * halfSize.y));\n" +
+            "    float2 dispersedCoord = d * grad * dispersionIntensity;\n" +
+            "\n" +
+            "    half4 color = half4(0.0);\n" +
+            "\n" +
+            "    half4 red = content.eval(refractedCoord + dispersedCoord);\n" +
+            "    color.r += red.r / 3.5;\n" +
+            "    color.a += red.a / 7.0;\n" +
+            "\n" +
+            "    half4 orange = content.eval(refractedCoord + dispersedCoord * (2.0 / 3.0));\n" +
+            "    color.r += orange.r / 3.5;\n" +
+            "    color.g += orange.g / 7.0;\n" +
+            "    color.a += orange.a / 7.0;\n" +
+            "\n" +
+            "    half4 yellow = content.eval(refractedCoord + dispersedCoord * (1.0 / 3.0));\n" +
+            "    color.r += yellow.r / 3.5;\n" +
+            "    color.g += yellow.g / 3.5;\n" +
+            "    color.a += yellow.a / 7.0;\n" +
+            "\n" +
+            "    half4 green = content.eval(refractedCoord);\n" +
+            "    color.g += green.g / 3.5;\n" +
+            "    color.a += green.a / 7.0;\n" +
+            "\n" +
+            "    half4 cyan = content.eval(refractedCoord - dispersedCoord * (1.0 / 3.0));\n" +
+            "    color.g += cyan.g / 3.5;\n" +
+            "    color.b += cyan.b / 3.0;\n" +
+            "    color.a += cyan.a / 7.0;\n" +
+            "\n" +
+            "    half4 blue = content.eval(refractedCoord - dispersedCoord * (2.0 / 3.0));\n" +
+            "    color.b += blue.b / 3.0;\n" +
+            "    color.a += blue.a / 7.0;\n" +
+            "\n" +
+            "    half4 purple = content.eval(refractedCoord - dispersedCoord);\n" +
+            "    color.r += purple.r / 7.0;\n" +
+            "    color.b += purple.b / 3.0;\n" +
+            "    color.a += purple.a / 7.0;\n" +
+            "\n" +
+            "    color = saturateColor(color, chromaMultiplier);\n" +
+            "    float3 target = (whitePoint > 0.0) ? float3(1.0) : float3(0.0);\n" +
+            "    color.rgb = mix(color.rgb, target, abs(whitePoint));\n" +
+            "    color.rgb = (color.rgb - 0.5) * (1.0 + contrast) + 0.5;\n" +
+            "\n" +
+            "    half3 tintedRGB = mix(color.rgb, tintColor, tintAlpha);\n" +
+            "    return half4(tintedRGB, color.a);\n" +
+            "}\n";
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG
             | Paint.FILTER_BITMAP_FLAG);
-    private final Matrix imageMatrix = new Matrix();
-    private final boolean dark;
-    private RuntimeShader shader;
-    private Bitmap bitmap;
-    private float backdropAlpha = .30f;
-    private boolean setupFailed;
+    private final Matrix bitmapScale = new Matrix();
+    private final float density;
+    private RuntimeShader sdfShader;
+    private Bitmap snapshot;
+    private boolean disabled;
+    private boolean loggedShader;
+    private int widthAtLastShaderUpdate;
+    private int heightAtLastShaderUpdate;
 
-    DevRefractiveBackdrop(Context context, boolean dark) {
+    DevRefractiveBackdrop(Context context, boolean ignoredTheme) {
         super(context);
-        this.dark = dark;
+        density = getResources().getDisplayMetrics().density;
         setClickable(false);
         setFocusable(false);
+        setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         setWillNotDraw(false);
-        if (Build.VERSION.SDK_INT >= 33) {
-            try {
-                shader = new RuntimeShader(SHADER);
-            } catch (Throwable e) {
-                shader = null;
-                DevFileLog.note("glass refraction fallback " +
-                        e.getClass().getSimpleName());
-            }
+        try {
+            sdfShader = new RuntimeShader(SDF_AGSL);
+            setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            DevFileLog.note("SDF optical pipeline loaded (QmDeve MIT adaptation)");
+        } catch (Throwable error) {
+            disabled = true;
+            DevFileLog.note("SDF optical unavailable " + error.getClass().getSimpleName());
         }
-        if (Build.VERSION.SDK_INT >= 31) {
-            float density = getResources().getDisplayMetrics().density;
-            setRenderEffect(RenderEffect.createBlurEffect(
-                    5f * density, 5f * density, Shader.TileMode.CLAMP));
-        }
-        setAlpha(backdropAlpha);
+        setAlpha(0f);
     }
 
-    void setSnapshot(Bitmap value) {
-        if (value == null || value.isRecycled()) return;
-        // The background may be virtually uniform while video is displayed
-        // through SurfaceView; don't wash out icons with a white placeholder.
-        float[] info = analyze(value);
-        float luminance = info[0];
-        float variation = info[1];
-        float alpha = variation < .065f ? .10f
-                : luminance > .67f ? .24f : .34f;
-        backdropAlpha = alpha;
-        setAlpha(alpha);
-
-        Bitmap old = bitmap;
-        bitmap = value;
-        setupFailed = false;
+    void setSnapshot(Bitmap image) {
+        if (image == null || image.isRecycled()) return;
+        // Videos drawn on SurfaceView are absent from View.draw(Canvas).
+        // Uniform captures are unreliable and must NOT become black/white
+        // pills. In that case leave a clear glass rim drawn by DevGlassSurface.
+        float[] stats = analyze(image);
+        float luma = stats[0], deviation = stats[1];
+        float confidence = Math.max(0f, Math.min(1f, (deviation - .055f) / .13f));
+        float opacity = disabled ? 0f : .87f * confidence;
+        if (luma > .81f) opacity *= .88f;
+        setAlpha(opacity);
+        Bitmap previous = snapshot;
+        snapshot = image;
         invalidate();
-        // Give RenderThread time to finish consuming old graphics resources.
-        if (old != null && old != value) {
+        if (previous != null && previous != image) {
             postDelayed(() -> {
-                if (old != bitmap && !old.isRecycled()) old.recycle();
-            }, 1500);
+                if (previous != snapshot && !previous.isRecycled())
+                    previous.recycle();
+            }, 1800);
         }
-        DevFileLog.note("glass material luma=" +
-                Math.round(luminance * 100) + "% texture=" +
-                Math.round(variation * 100) + "% blend=" +
-                Math.round(alpha * 100) + "%");
+        DevFileLog.note("SDF optics luma=" + Math.round(luma * 100)
+                + "% detail=" + Math.round(deviation * 100)
+                + "% confidence=" + Math.round(confidence * 100)
+                + "% visible=" + Math.round(opacity * 100) + "%");
     }
 
-    private static float[] analyze(Bitmap bitmap) {
-        int count = 0;
-        double total = 0;
-        double totalSq = 0;
-        int xStep = Math.max(1, bitmap.getWidth() / 11);
-        int yStep = Math.max(1, bitmap.getHeight() / 5);
-        for (int y = 0; y < bitmap.getHeight(); y += yStep) {
-            for (int x = 0; x < bitmap.getWidth(); x += xStep) {
-                int c = bitmap.getPixel(x, y);
-                double v = (.2126 * android.graphics.Color.red(c)
-                        + .7152 * android.graphics.Color.green(c)
-                        + .0722 * android.graphics.Color.blue(c)) / 255.;
-                total += v;
-                totalSq += v * v;
+    private static float[] analyze(Bitmap b) {
+        float mean = 0f, squared = 0f;
+        int count = 0, dx = Math.max(1, b.getWidth()/12);
+        int dy = Math.max(1, b.getHeight()/6);
+        for (int y=0; y<b.getHeight(); y+=dy) {
+            for (int x=0; x<b.getWidth(); x+=dx) {
+                int c = b.getPixel(x, y);
+                float v = (0.2126f * ((c>>16)&255)
+                        + 0.7152f * ((c>>8)&255)
+                        + 0.0722f * (c&255))/255f;
+                mean += v;
+                squared += v*v;
                 count++;
             }
         }
-        if (count == 0) return new float[] {0f, 0f};
-        double mean = total / count;
-        double sd = Math.sqrt(Math.max(0., totalSq / count - mean * mean));
-        return new float[] {(float) mean, (float) sd};
+        if (count == 0) return new float[]{0f, 0f};
+        mean /= count;
+        return new float[]{mean, (float)Math.sqrt(Math.max(0f,
+                squared/count-mean*mean))};
     }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        Bitmap current = bitmap;
-        if (current == null || current.isRecycled()
-                || getWidth() == 0 || getHeight() == 0) return;
+        Bitmap b = snapshot;
+        if (disabled || b == null || b.isRecycled()
+                || getWidth() < 2 || getHeight() < 2) return;
         try {
-            imageMatrix.reset();
-            imageMatrix.setScale(getWidth() / (float) current.getWidth(),
-                    getHeight() / (float) current.getHeight());
-            BitmapShader input = new BitmapShader(current,
+            float w = getWidth(), h = getHeight();
+            BitmapShader bitmapInput = new BitmapShader(b,
                     Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-            input.setLocalMatrix(imageMatrix);
-            if (shader != null && !setupFailed) {
-                shader.setInputShader("u_content", input);
-                shader.setFloatUniform("u_size",
-                        (float) getWidth(), (float) getHeight());
-                shader.setFloatUniform("u_dark", dark ? 1f : 0f);
-                paint.setShader(shader);
-                canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
-            } else {
-                // Existing visual contrast remains protected by the low-alpha
-                // material base. Plain bitmap is a graceful fallback.
-                paint.setShader(null);
-                canvas.drawBitmap(current, null,
-                        new android.graphics.Rect(0, 0, getWidth(), getHeight()), paint);
+            bitmapScale.reset();
+            bitmapScale.setScale(w/b.getWidth(), h/b.getHeight());
+            bitmapInput.setLocalMatrix(bitmapScale);
+
+            sdfShader.setInputShader("content", bitmapInput);
+            if (widthAtLastShaderUpdate != getWidth()
+                    || heightAtLastShaderUpdate != getHeight()) {
+                widthAtLastShaderUpdate = getWidth();
+                heightAtLastShaderUpdate = getHeight();
+                float r = h*.5f;
+                sdfShader.setFloatUniform("size",w,h);
+                sdfShader.setFloatUniform("offset",0f,0f);
+                sdfShader.setFloatUniform("cornerRadii",r,r,r,r);
+                sdfShader.setFloatUniform("refractionHeight",
+                        Math.min(19f*density,h*.27f));
+                sdfShader.setFloatUniform("refractionAmount",
+                        -Math.min(23f*density,h*.32f));
+                sdfShader.setFloatUniform("depthEffect",.15f);
+                sdfShader.setFloatUniform("chromaticAberration",.12f);
+                sdfShader.setFloatUniform("contrast",0f);
+                sdfShader.setFloatUniform("whitePoint",0f);
+                sdfShader.setFloatUniform("chromaMultiplier",1.06f);
+                sdfShader.setFloatUniform("tintColor",.91f,.94f,.98f);
+                sdfShader.setFloatUniform("tintAlpha",.075f);
+                if (!loggedShader) {
+                    loggedShader=true;
+                    DevFileLog.note("SDF refraction+dispersion uniform setup "
+                            + getWidth() + "x" + getHeight());
+                }
             }
-        } catch (Throwable e) {
-            if (!setupFailed) {
-                setupFailed = true;
-                DevFileLog.note("refractive draw fallback " +
-                        e.getClass().getSimpleName());
-            }
-            paint.setShader(null);
-            paint.setColor(dark ? 0xFF5B6472 : 0xFFD3DCE3);
-            canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
+            paint.setShader(sdfShader);
+            canvas.drawRect(0,0,w,h,paint);
+        } catch (Throwable error) {
+            disabled = true;
+            setAlpha(0f);
+            DevFileLog.note("SDF shader failed; clear-glass fallback "
+                    + error.getClass().getSimpleName() + " "
+                    + String.valueOf(error.getMessage()));
         }
     }
 
     @Override protected void onDetachedFromWindow() {
-        Bitmap old = bitmap;
-        bitmap = null;
+        Bitmap old = snapshot;
+        snapshot = null;
         if (old != null && !old.isRecycled()) {
             postDelayed(() -> {
-                if (old != bitmap && !old.isRecycled()) old.recycle();
-            }, 1500);
+                if (old != snapshot && !old.isRecycled()) old.recycle();
+            }, 1800);
         }
         super.onDetachedFromWindow();
     }
