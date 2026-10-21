@@ -143,6 +143,18 @@ final class DevGlassUi {
 
         void syncSelection() {
             if (!attached() || dragging) return;
+            // Instagram may restore native tab selection backgrounds after a
+            // scroll or page switch. This previously turned CLEAR glass back
+            // into solid white/black. Re-clear only full-sized panels.
+            if (nav.getBackground() != null) nav.setBackground(null);
+            for (int i=0; i<nav.getChildCount(); i++) {
+                removeOpaqueButtonSurfaces(nav.getChildAt(i),barHeight,0,
+                        "tab-sync-" + i);
+            }
+            if (search != null) {
+                removeOpaqueButtonSurfaces(search,barHeight,0,"search-sync");
+                if (search.getAlpha() != 0f) search.setAlpha(0f);
+            }
             if (search != null && isSelected(search, 0)) {
                 if (!selectionSearch) selectSearch();
                 return;
