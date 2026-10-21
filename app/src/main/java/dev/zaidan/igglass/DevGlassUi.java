@@ -80,6 +80,29 @@ final class DevGlassUi {
             this.dark = dark;
         }
 
+        void auditMaterial(String route) {
+            logShell("main", mainPill, route);
+            if (searchPill != null) logShell("search", searchPill, route);
+        }
+
+        private static void logShell(String name, FrameLayout shell, String route) {
+            StringBuilder childViews = new StringBuilder();
+            int count = Math.min(shell.getChildCount(), 10);
+            for (int i = 0; i < count; i++) {
+                View v = shell.getChildAt(i);
+                if (childViews.length() != 0) childViews.append(",");
+                childViews.append(v.getClass().getSimpleName())
+                        .append(":a").append(Math.round(v.getAlpha()*100));
+                if (v.getBackground() != null)
+                    childViews.append(":bg=")
+                            .append(v.getBackground().getClass().getSimpleName());
+            }
+            DevFileLog.note("r10 material audit " + route + " " + name
+                    + " shellBg=" + (shell.getBackground() == null
+                                    ? "NULL" : shell.getBackground().getClass().getSimpleName())
+                    + " children=[" + childViews + "]");
+        }
+
         boolean attached() {
             return mainPill.getParent() == host
                     && nav.getParent() == mainPill
