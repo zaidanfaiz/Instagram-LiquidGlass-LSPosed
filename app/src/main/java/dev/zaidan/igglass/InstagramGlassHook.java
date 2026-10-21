@@ -87,6 +87,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         private final Activity activity;
         private final View decor;
         private DevGlassUi.Scene scene;
+        private DevEdgeSpaceFix.Session edgeSpace;
         private boolean running;
         private boolean resumed;
         private long lastMissingLog;
@@ -104,6 +105,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                         if (scene == null) install();
                         else if (!scene.attached()) {
                             DevFileLog.note("native nav tree changed; attempting safe rebind");
+                            if (edgeSpace != null) edgeSpace.restore();
+                            edgeSpace = null;
                             scene.removeAndRestore();
                             scene = null;
                             install();
@@ -138,6 +141,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         void onPause() {
             resumed = false;
             if (scene != null) scene.show(false);
+            if (edgeSpace != null) edgeSpace.restore();
             DevFileLog.note("main activity paused: hide both glass shells");
         }
 
@@ -152,6 +156,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             running = false;
             resumed = false;
             decor.removeCallbacks(poll);
+            if (edgeSpace != null) {
+                edgeSpace.restore();
+                edgeSpace = null;
+            }
             if (scene != null) {
                 scene.removeAndRestore();
                 scene = null;
@@ -182,6 +190,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (!isDescendant(parent, host)) return;
             scene = DevGlassUi.create(activity, host, parent, nav);
             if (scene == null) return;
+            edgeSpace = DevEdgeSpaceFix.inspect(activity, parent);
             reclaimOriginalNavSpace();
             DevFileLog.note("0.1-dev active; no repeated full-screen screenshot blur");
             sync();
@@ -193,6 +202,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             String state = reason == null ? "visible" : "hidden:" + reason;
             boolean show = reason == null;
             scene.show(show);
+            if (edgeSpace != null) edgeSpace.setActive(show);
             if (show) {
                 reclaimOriginalNavSpace();
                 scene.syncSelection();
