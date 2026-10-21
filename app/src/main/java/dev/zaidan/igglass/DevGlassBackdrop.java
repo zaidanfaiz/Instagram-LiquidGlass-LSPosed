@@ -182,7 +182,11 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         int rh = Math.min(Math.max(1, Math.round(height * SCALE)),
                 original.getHeight() - t);
         if (rw <= 0 || rh <= 0) return null;
-        return Bitmap.createBitmap(original, l, t, rw, rh);
+        Bitmap cropped = Bitmap.createBitmap(original, l, t, rw, rh);
+        // Full-size crops may be returned as the original bitmap itself.
+        // The shared strip is recycled after both crops are installed.
+        return cropped == original
+                ? original.copy(Bitmap.Config.ARGB_8888, false) : cropped;
     }
 
     void stop() {
