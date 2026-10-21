@@ -213,8 +213,10 @@ final class DevScreenDetector {
             // store message text, handles or profile descriptions in logs.
             // Require markers near the header to avoid feed caption matches.
             if (child instanceof TextView) {
-                String label = ((TextView) child).getText().toString()
-                        .trim().toLowerCase(Locale.ROOT);
+                CharSequence displayed = ((TextView) child).getText();
+                // Ignore long/private text; only tiny fixed UI labels.
+                if (displayed != null && displayed.length() <= 44) {
+                String label = displayed.toString().trim().toLowerCase(Locale.ROOT);
                 int[] loc = new int[2];
                 child.getLocationOnScreen(loc);
                 if (loc[1] >= 0 && loc[1] < group.getRootView().getHeight() * .60f) {
@@ -225,6 +227,7 @@ final class DevScreenDetector {
                     else if ("utama".equals(label)) found[9]++;
                     else if ("permintaan".equals(label)) found[10]++;
                     else if (label.contains("cari atau tanya meta ai")) found[11]++;
+                }
                 }
             }
             if (category >= 0) {
