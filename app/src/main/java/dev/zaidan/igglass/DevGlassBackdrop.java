@@ -62,6 +62,10 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
 
     void request(int delayMs) {
         if (stopped || slowDevice || !started) return;
+        if (scene.isReelsActive()) {
+            host.removeCallbacks(refresh);
+            return;
+        }
         host.removeCallbacks(refresh);
         host.postDelayed(refresh, delayMs);
     }
@@ -72,6 +76,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
 
     private void capture() {
         if (stopped || slowDevice || !scene.attached()
+                || scene.isReelsActive()
                 || scene.mainPill.getVisibility() != View.VISIBLE
                 || activity.isFinishing() || activity.isDestroyed()
                 || !activity.hasWindowFocus()) return;
@@ -119,7 +124,8 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
                     Math.max(1, Math.round(w * SCALE)),
                     Math.max(1, Math.round(h * SCALE)), Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(combined);
-            canvas.drawColor(scene.dark ? 0xFF121720 : 0xFFE8EEF4);
+            // Bitmap starts fully transparent. NEVER put opaque fake dark/white
+            // fallback pixels under a glass shader (especially on Reels).
             canvas.scale(SCALE, SCALE);
             canvas.translate(-sx, -sy);
             canvas.clipRect(sx, sy, ex, ey);
