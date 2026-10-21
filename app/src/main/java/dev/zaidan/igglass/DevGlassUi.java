@@ -502,6 +502,38 @@ final class DevGlassUi {
                 @Override public void onSlideCancel() { scene.slideCancel(); }
                 @Override public void onTap(float x) { scene.tapMain(x); }
             });
+
+            // R14: the real Instagram controls are intentionally visually
+            // alpha=0, but their native custom touch dispatch is not reliable
+            // over the Reels player: a long press can leak down to Instagram
+            // and trigger 2x video speed. Install a TOPMOST transparent input
+            // shield to capture DOWN, MOVE and UP before any child view.
+            // It delegates to the existing DevGesturePill recognizer without
+            // creating replacement destinations or touching video surfaces.
+            View slideShield = new View(activity);
+            slideShield.setClickable(true);
+            slideShield.setFocusable(false);
+            slideShield.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            slideShield.setOnTouchListener((v, ev) -> main.onTouchEvent(ev));
+            main.addView(slideShield, new FrameLayout.LayoutParams(-1, -1));
+            main.bringChildToFront(slideShield);
+
+            if (searchShell != null) {
+                final FrameLayout searchPillRef = searchShell;
+                View searchShield = new View(activity);
+                searchShield.setClickable(true);
+                searchShield.setFocusable(false);
+                searchShield.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                searchShield.setOnTouchListener((v, ev) -> {
+                    if (ev.getActionMasked() == MotionEvent.ACTION_UP) {
+                        scene.selectSearch();
+                    }
+                    return true;
+                });
+                searchPillRef.addView(searchShield, new FrameLayout.LayoutParams(-1,-1));
+                searchPillRef.bringChildToFront(searchShield);
+            }
+            DevFileLog.note("r14 touch shields armed: Reels speed long-press intercepted on DOWN");
             main.post(() -> scene.positionLens(false));
             DevFileLog.note("r10 VISUAL ISOLATION: pure transparent shell, only active lens tint");
             main.post(() -> {
