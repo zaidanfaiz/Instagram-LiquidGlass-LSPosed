@@ -2,6 +2,57 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current test build: **0.1-dev-r3 frosted glass**
+
+The last device screenshot (0.1-dev) was opaque white because the module
+followed system night mode instead of Instagram's own near-black `tab_bar`
+background. The device's Downloads log confirms that the 180px tab margin
+was already reclaimed, but a smaller bottom region was still visible.
+
+v0.1-dev-r3 includes all r2 fixes, plus a **small frosted snapshot layer**
+behind the translucent dark glass. This captures the narrow union strip
+behind the two pills **once after interactions settle**, rather than drawing
+the whole Instagram screen twice at 12fps as in v0.9. The small bitmap is
+softened by Android's RenderEffect on the GPU; the AGSL specular ripple and
+draggable selected lens work separately. Captures are rate-limited (at most
+one per 1200ms), automatically suspended on slow devices if a capture takes
+over ~38ms, and have no ongoing per-frame polling. Reels/SurfaceView videos
+may not appear in the off-screen sample.
+
+Additional changes carried forward:
+- **Dark adaptive glass**, 44dp lift, separated Search circle and unclipped
+  `BOTTOM|LEFT` main pill.
+- Slide-to-select over the four original buttons with native click/touch
+  dispatch, preserving normal tap behavior.
+- Targeted **180px feed margin correction**, and an extra reversible,
+  ID-verified **60px root coordinator inset** correction to address the
+  residual dark strip; applied only if Android reports a transparent
+  system navbar with a 0px navigation inset.
+- Story/profile detection now has a large-view ID fallback on Instagram
+  versions that do not expose a normal AndroidX support fragment manager.
+- **Downloads** log still created automatically as
+  `IGGlass-0.1-dev-YYYYMMDD-HHmmss.txt`, with lines for theme, layout,
+  gesture, edge-space, screen state and frosted snapshot latency.
+
+### Test it
+
+Install the APK from the **latest successful GitHub Actions build** for the
+current main commit, force-stop Instagram, reopen it and check:
+1. Dark translucent/frosted background on both pills — no opaque white;
+   enough clearance below both bars.
+2. Drag the active highlight across Home / Reels / Send / Profile and release;
+   the corresponding native tab should open. Test Search separately.
+3. Swipe through the feed and DM, including quick scrolling. Check for
+   freezes/stutters. The glass blur refreshes at rest, not on every frame.
+4. Open a Story/status and a profile, then return. Note any failure to hide.
+5. Check Downloads log for `theme=DARK`, `gesture: glass selection drag`,
+   `edge-space: reclaimed` (or a reason it was skipped), `frost: ...ms`
+   and any screen detection messages. Send this file with a screenshot.
+
+The cached backdrop is **not real-time iOS refractive Liquid Glass**; the
+effect is an experimental Android approximation. This build's appearance
+and gesture behavior remain **untested on the user's device**.
+
 ## Current test: **0.1-dev-r2 dark glass + slide** (Android 16 / Instagram 452)
 
 This patch responds to the user's **real 0.1-dev screenshot and Downloads
