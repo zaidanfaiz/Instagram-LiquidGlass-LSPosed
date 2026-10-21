@@ -4,13 +4,13 @@ Changes in this project are recorded here. Beta releases may contain breaking ch
 
 ## [Unreleased] — documentation and contribution policy
 
-- Clarified that the module can **potentially** run on multiple Android and Instagram versions: Android 16 / API 36, reported 1440×3200 screen and Instagram 452.0.0.48.64 are the **documented test setup, not installation restrictions**.
+- Clarified that the module can **potentially** run on multiple Android and Instagram versions: **POCO F7 Ultra**, Android 16 / API 36, a **1440×3200 recorded window** and Instagram 452.0.0.48.64 are the **documented test setup, not installation restrictions**.
 - Documented **manual updates from GitHub Releases** using Android's installer, and the signing-certificate requirement for seamless in-place updates.
 - Added a custom, limited **source-available contribution license**, maintainer code ownership and pull request review guidance. Redistribution is not generally permitted; public GitHub cloning cannot be technically prevented.
 
 ## [0.1.0-beta.1] — 2026-10-22
 
-**First GitHub pre-release for the LSPosed module.** Bundles the previously tested r19 feature set. Android 16 with Instagram `452.0.0.48.64` is the documented developer test combination, **not a hardcoded compatibility restriction**.
+**First GitHub pre-release for the LSPosed module.** Bundles the previously tested r19 feature set. Device testing used a **POCO F7 Ultra**, Android 16 (API 36) and Instagram `452.0.0.48.64`; **these are not hardcoded compatibility restrictions**.
 
 ### Features
 - Floating main capsule with **Home, Reels, Direct and Profile**, plus a separate circular **Search** button.
@@ -41,7 +41,7 @@ Changes in this project are recorded here. Beta releases may contain breaking ch
 - GitHub tag: `v0.1.0-beta.1`
 - Android app ID: `dev.zaidan.igglass`
 - Module scope: `com.instagram.android`
-- APK minimum install SDK: 29 (Android 10); **Android 16 is the observed developer test environment**, other Android versions remain unverified
+- APK minimum install SDK: 29 (Android 10); **POCO F7 Ultra / Android 16 is the observed development test device**, other versions are not yet verified
 - APK and SHA-256 checksums: attached to the GitHub Release
 
 ---
