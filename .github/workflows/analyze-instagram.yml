@@ -30,8 +30,8 @@ jobs:
 
       - name: Download APK from this repository release
         env:
-          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: \${{ github.event.release.tag_name || inputs.release_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/instagram-input"
@@ -101,7 +101,7 @@ jobs:
         with:
           name: instagram-452-nav-analysis
           path: |
-            \${{ runner.temp }}/nav-report/*.md
-            \${{ runner.temp }}/nav-report/decoding-status.txt
+            ${{ runner.temp }}/nav-report/*.md
+            ${{ runner.temp }}/nav-report/decoding-status.txt
           if-no-files-found: error
           retention-days: 7
