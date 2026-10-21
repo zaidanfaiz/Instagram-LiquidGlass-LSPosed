@@ -239,10 +239,13 @@ final class DevGlassUi {
             lastSlideAt = System.currentTimeMillis();
             int index = indexAt(localX);
             selectMain(index, true);
-            boolean activated = clickRealTab(nav.getChildAt(index), 0);
+            View destination = nav.getChildAt(index);
+            boolean activated = clickRealTab(destination, 0);
+            String mechanism = activated ? "performClick" : "nativeTouchDispatch";
+            if (!activated) activated = dispatchOriginalTouch(destination);
             if (mainFx != null) mainFx.pulse(localX, mainPill.getHeight() / 2f);
             DevFileLog.note("gesture: glass selection drag END index=" + index
-                    + " nativeClick=" + activated);
+                    + " nativeAction=" + mechanism + " handled=" + activated);
         }
 
         void slideCancel() {
@@ -279,6 +282,29 @@ final class DevGlassUi {
             }
             if (view.isClickable()) return view.performClick();
             return false;
+        }
+
+        private static boolean dispatchOriginalTouch(View tab) {
+            if (tab.getWidth() <= 0 || tab.getHeight() <= 0) return false;
+            long t = android.os.SystemClock.uptimeMillis();
+            float centerX = tab.getWidth() / 2f;
+            float centerY = tab.getHeight() / 2f;
+            MotionEvent down = MotionEvent.obtain(t, t,
+                    MotionEvent.ACTION_DOWN, centerX, centerY, 0);
+            MotionEvent up = MotionEvent.obtain(t, t + 55,
+                    MotionEvent.ACTION_UP, centerX, centerY, 0);
+            try {
+                boolean handledDown = tab.dispatchTouchEvent(down);
+                boolean handledUp = tab.dispatchTouchEvent(up);
+                return handledDown || handledUp;
+            } catch (Throwable e) {
+                DevFileLog.note("drag native dispatch error "
+                        + e.getClass().getSimpleName());
+                return false;
+            } finally {
+                down.recycle();
+                up.recycle();
+            }
         }
 
         void removeAndRestore() {
