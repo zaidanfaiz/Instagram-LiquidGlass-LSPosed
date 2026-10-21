@@ -34,13 +34,14 @@ final class DevSearchGlyph extends View {
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        float density = getResources().getDisplayMetrics().density;
-        float cx = getWidth() * .47f, cy = getHeight() * .46f;
-        float radius = Math.min(getWidth(), getHeight()) * .205f;
+        // Artwork scales to ~23dp including handle in a 60dp touch circle.
+        // Never size the glass/search icon as large as its touch target.
+        float cx = getWidth() * .46f, cy = getHeight() * .44f;
+        float radius = Math.min(getWidth(), getHeight()) * .155f;
         canvas.drawCircle(cx, cy, radius, outline);
         canvas.drawCircle(cx, cy, radius, paint);
         float start = radius * .72f;
-        float end = radius * 1.53f;
+        float end = radius * 1.42f;
         canvas.drawLine(cx + start, cy + start,
                 cx + end, cy + end, outline);
         canvas.drawLine(cx + start, cy + start,
