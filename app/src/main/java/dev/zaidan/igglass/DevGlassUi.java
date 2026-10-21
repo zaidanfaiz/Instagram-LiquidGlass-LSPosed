@@ -367,6 +367,16 @@ final class DevGlassUi {
 
         void slideMove(float localX) {
             if (!dragging || lens == null || nav.getWidth() == 0) return;
+            // The fifth destination is Search, in its separate glass circle
+            // to the RIGHT of Own Profile. A continuous drag can cross the
+            // gap and finish on Search without falsely selecting Profile.
+            boolean aimingSearch = landingOnSearch(localX);
+            lens.setAlpha(aimingSearch ? .48f : 1f);
+            if(searchPill!=null) {
+                float scale = aimingSearch ? 1.055f : 1f;
+                searchPill.setScaleX(scale);
+                searchPill.setScaleY(scale);
+            }
             float desiredX = localX - lens.getWidth() / 2f;
             float low = nav.getLeft() + dp(nav, 4);
             float high = nav.getLeft() + nav.getWidth() - lens.getWidth()
@@ -393,6 +403,15 @@ final class DevGlassUi {
             if (!dragging) return;
             dragging = false;
             lastSlideAt = System.currentTimeMillis();
+            if (searchPill!=null) {
+                searchPill.setScaleX(1f);
+                searchPill.setScaleY(1f);
+            }
+            if (landingOnSearch(localX)) {
+                tapSearch();
+                DevFileLog.note("r17 glass swipe main->Search separated destination");
+                return;
+            }
             int index = indexAt(localX);
             selectMain(index, true);
             View destination = nav.getChildAt(index);
@@ -407,8 +426,24 @@ final class DevGlassUi {
         void slideCancel() {
             dragging = false;
             lastSlideAt = System.currentTimeMillis();
+            if (searchPill!=null) {
+                searchPill.setScaleX(1f);
+                searchPill.setScaleY(1f);
+            }
+            lens.setAlpha(1f);
             positionLens(true);
             DevFileLog.note("gesture: glass selection drag CANCEL");
+        }
+
+        private boolean landingOnSearch(float localX) {
+            if(searchPill==null || searchPill.getVisibility()!=View.VISIBLE)
+                return false;
+            int[] mainXY=new int[2],searchXY=new int[2];
+            mainPill.getLocationOnScreen(mainXY);
+            searchPill.getLocationOnScreen(searchXY);
+            float absoluteX=mainXY[0]+localX;
+            return absoluteX>=searchXY[0]-dp(nav,7)
+                    && absoluteX<=searchXY[0]+searchPill.getWidth();
         }
 
         private int indexAt(float localX) {
@@ -605,11 +640,34 @@ final class DevGlassUi {
                 searchShield.setClickable(true);
                 searchShield.setFocusable(false);
                 searchShield.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                final float[] searchDown = new float[2];
                 searchShield.setOnTouchListener((v, ev) -> {
-                    if (ev.getActionMasked() == MotionEvent.ACTION_UP) {
-                        scene.tapSearch();
+                    switch (ev.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                            searchDown[0]=ev.getRawX();
+                            searchDown[1]=ev.getRawY();
+                            return true;
+                        case MotionEvent.ACTION_UP:
+                            float dx=ev.getRawX()-searchDown[0];
+                            float dy=ev.getRawY()-searchDown[1];
+                            // Drag BACK from separate Search to its previous
+                            // logical destination: OWN Profile, not native DM.
+                            int[] mainXY=new int[2];
+                            main.getLocationOnScreen(mainXY);
+                            boolean endedMain=ev.getRawX()>=mainXY[0]
+                                    && ev.getRawX()<=mainXY[0]+main.getWidth();
+                            if(endedMain && dx< -dp(nav,34)
+                                    && Math.abs(dx)>Math.abs(dy)*1.25f) {
+                                scene.navigateOriginalPage(4,
+                                        "glassSwipeSearchToProfile");
+                            } else if(Math.abs(dx)<dp(nav,18)
+                                    && Math.abs(dy)<dp(nav,18)) {
+                                scene.tapSearch();
+                            }
+                            return true;
+                        default:
+                            return true;
                     }
-                    return true;
                 });
                 searchPillRef.addView(searchShield, new FrameLayout.LayoutParams(-1,-1));
                 searchPillRef.bringChildToFront(searchShield);
