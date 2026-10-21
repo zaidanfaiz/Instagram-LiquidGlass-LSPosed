@@ -2,6 +2,33 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## v0.7 — runtime hierarchy diagnostics (no visual changes)
+
+The uploaded Instagram 452 APK was decoded successfully. Static XML/DEX
+candidates (including `fixed_tabbar_layout`, `floating_tab_bar_shadow`,
+and `navigationBarColor`) are not proof of which layer draws the black strip.
+v0.7 adds read-only runtime logs before and after floating-bar relocation.
+
+### Reproduce and collect logs
+
+1. Download the latest successful **Build LSPosed APK** artifact for the
+   v0.7 commit and install the debug APK.
+2. In LSPosed, enable the module and scope it to **Instagram** only.
+3. Force-stop Instagram and reopen it on the home/feed tab, wait 2 seconds,
+   then switch tabs once. If possible, capture a screenshot of the dark strip.
+4. Open **LSPosed > Logs > Module logs**, export/share the logs and keep the
+   lines beginning `IGGlass-DIAG:` and `IGGlass:`. They include both
+   `BEGIN before-floating` and `BEGIN after-floating` when relocation runs.
+5. Share the filtered text output (and screenshot if available) for diagnosis.
+
+Logs describe only view class names, resource IDs, positions, background types,
+and Android system-bar insets; view text and account content are intentionally
+excluded. If `IGGlass-DIAG` never appears, verify the module scope and
+whether Instagram's 452 navigation was detected.
+
+This is a **diagnostic build**, not a confirmed fix for the black strip.
+Disable the module and force-stop Instagram if any tab breaks.
+
 ## v0.6 — remove legacy bottom bar slot (beta)
 
 Fixes the issue visible in v0.5 where the frosted pill floats over a **second, opaque dark strip** at the bottom of Instagram.
@@ -27,7 +54,7 @@ GitHub Actions uses a new debug signing key on some runs. For Android's "not ins
 ## Private APK analysis using GitHub Actions
 
 The 452.0.0.48.64 APK is too large to commit to Git, and this project's
-**GitHub repository is currently public**. **Make it private BEFORE attaching
+**GitHub repository must be private**. **Make it private BEFORE attaching
 an Instagram APK** (Settings > General > Danger Zone > Change visibility).
 Do not publish a third-party APK as a public GitHub release.
 
