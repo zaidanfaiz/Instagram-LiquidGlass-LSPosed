@@ -1,12 +1,13 @@
 name: Analyze Instagram APK (no build)
 
+# Manual research-only workflow. Never run on project release publication:
+# this reads a third-party Instagram APK from a private/draft research release.
+# Do not distribute the source APK when the repository becomes public.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Private release tag containing APK"
+        description: "Tag of an internal draft research release (owner access only)"
         required: true
         type: string
 
@@ -31,7 +32,7 @@ jobs:
       - name: Download APK from this repository release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/instagram-input"
