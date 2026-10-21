@@ -1,78 +1,124 @@
-# Instagram Liquid Glass — LSPosed
+<div align="center">
 
-Modul **LSPosed tidak resmi** yang mengubah navbar bawah Instagram menjadi kapsul kaca melayang, dengan efek blur dan tombol navigasi asli Instagram tetap digunakan.
+# Instagram Liquid Glass
 
-[README English](README.md) · [Download rilis](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases) · [Changelog](CHANGELOG.md) · [Laporkan bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)
+**Navigasi Instagram melayang dengan tampilan frosted glass di Android.**
 
-> [!IMPORTANT]
-> **Versi beta.** Modul ini **tidak sengaja dibatasi hanya untuk satu versi Instagram atau Android**. Ada kemungkinan berjalan di versi lain, tetapi belum diuji secara menyeluruh. Pengujian pengembang tercatat menggunakan **Android 16 (API 36) dan Instagram 452.0.0.48.64**. Proyek independen, bukan produk resmi Instagram, Meta, Apple, atau LSPosed.
+Modul LSPosed independen — tidak perlu menginstal APK Instagram modifikasi.
 
-## Fitur
+[![Build](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions/workflows/build-apk.yml/badge.svg)](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions/workflows/build-apk.yml)
+[![Release](https://img.shields.io/badge/release-v0.1.0--beta.1-F5A623)](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1)
+![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
+![Framework](https://img.shields.io/badge/framework-LSPosed-5865F2)
 
-- Navbar melayang berisi **Home, Reels, DM dan Profil**, dengan **Search terpisah** di lingkaran kaca sebelah kanan.
-- Urutan navigasi: **Home → Reels → DM → Profil → Search**. Mendukung tap dan geser lensa kaca. Swipe pada isi halaman masih merupakan pengalihan berbasis navigasi asli Instagram, sehingga belum tentu selalu mulus.
-- Tampilan frosted glass dengan blur, tepi kaca reflektif dan animasi lensa aktif.
-- Blur Reels beta melalui pengambilan potongan gambar kecil menggunakan `PixelCopy`; jika tidak didukung, tampilannya kembali menjadi kaca bening.
-- Navbar otomatis disembunyikan pada konteks tertentu, termasuk komentar Reels, chat DM terbuka, Story dan profil pengguna lain.
-- Tidak perlu memasang Instagram modifikasi. Modul bekerja pada Instagram yang sudah terpasang melalui LSPosed.
+**[Unduh APK](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1) · [Cara instal](#instalasi) · [Kompatibilitas](#kompatibilitas) · [Lapor bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)**
 
-## Kompatibilitas dan data perangkat pengujian
+[English](README.md) · **Bahasa Indonesia**
 
-Modul bekerja dengan mengenali elemen navigasi pada aplikasi `com.instagram.android`, **tanpa daftar putih yang mengunci nomor versi Instagram**. Artinya, modul **mungkin berjalan di Android dan versi Instagram lain** selama struktur navigasinya kompatibel. Itu bukan jaminan semua versi akan bekerja sempurna.
+</div>
 
-| Komponen | Keterangan |
-| --- | --- |
-| Minimum pemasangan APK | **Android 10 (API 29)** sesuai deklarasi `minSdk`; bukan jaminan semua fitur berfungsi pada versi tersebut |
-| Instagram | Paket aplikasi `com.instagram.android`, versi dapat berbeda |
-| LSPosed | Wajib, dengan scope khusus Instagram |
-| Root atau lingkungan yang mendukung LSPosed | Wajib |
-| Android/Instagram lainnya | **Berpotensi kompatibel, belum diverifikasi** |
-| iOS | Tidak didukung |
+---
 
-### Data perangkat yang digunakan untuk pengujian
+## Navbar Instagram, tampilan baru
 
-Informasi ini berasal dari log diagnostik perangkat saat pengembangan, **bukan batasan instalasi**.
+Empat tab berada dalam kapsul kaca melayang, sedangkan tombol Search berdiri sendiri di sisi kanan.
 
-| Informasi | Data terverifikasi |
-| --- | --- |
-| Sistem operasi | **Android 16 / API 36** |
-| Versi Instagram | **452.0.0.48.64** |
-| Resolusi window/layar yang tercatat | **1440 × 3200 piksel** |
-| Paket Instagram | `com.instagram.android` |
-| Paket modul | `dev.zaidan.igglass` |
-| Merek dan model HP | **Belum terekam di log** |
-| Nama ROM / build | **Belum terekam di log** |
+```text
+       ╭──────────────────────────────────╮   ╭────────╮
+       │  Home    Reels     DM   Profil   │   │ Search │
+       ╰──────────────────────────────────╯   ╰────────╯
+                  kapsul utama                  terpisah
+```
 
-Pengujian tersebut tidak menutup kemungkinan modul berjalan di Android 10–15, Android yang lebih baru, atau versi Instagram lainnya. Kompatibilitas harus diuji pada masing-masing perangkat. Laporan dari perangkat lain sangat membantu.
+**Home → Reels → DM → Profil → Search**
 
-## Instalasi dan update manual
+Tetap menggunakan aplikasi Instagram asli dan fungsi tombol navigasi Instagram. Lu bisa mengetuk ikon atau menggeser lensa kaca aktif menuju tab lain.
 
-1. Unduh **APK modul** dari halaman [GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases). Boleh periksa SHA-256 dengan `SHA256SUMS.txt`. Ini **bukan APK Instagram modifikasi**.
-2. Instal APK pada perangkat Android dengan LSPosed.
-3. Buka **LSPosed → Modules → Instagram Liquid Glass**, aktifkan dan pilih scope **Instagram (`com.instagram.android`)** saja.
-4. **Force-stop Instagram**, kemudian buka kembali.
-5. Coba Home, Reels, DM, Profil, Search, blur, dan komentar Reels.
+### Fitur utama
 
-### Cara update ketika ada rilis baru
+| Fitur | Penjelasan |
+| :--- | :--- |
+| **Floating glass navbar** | Kapsul transparan dengan blur, tepi reflektif, dan animasi lensa aktif |
+| **Blur pada Reels** | Sampling video terbatas memakai Android `PixelCopy` secara asinkron |
+| **Lima tujuan** | Home, Reels, inbox DM, profil sendiri, dan Search di lingkaran terpisah |
+| **Navigasi geser** | Geser lensa pada navbar; perpindahan lewat swipe isi halaman menggunakan remapping terbatas |
+| **Tampil sesuai konteks** | Dirancang menghilang ketika membuka komentar Reels, chat DM, Story, atau profil orang lain |
+| **Instagram asli** | Tidak mendistribusikan APK Instagram yang telah diubah |
 
-**Update dilakukan manual melalui GitHub**, tanpa pembaruan otomatis di dalam modul.
+> [!NOTE]
+> Ini adalah **beta**. Efek blur terinspirasi Liquid Glass, tetapi belum memakai compositor iOS. Sebagian video atau konten tertentu dapat menampilkan kaca bening saat frame tidak bisa diambil. Swipe isi halaman belum mengganti pager internal Instagram secara langsung.
 
-1. Buka [GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases).
-2. Unduh APK versi terbaru, lalu buka APK tersebut.
-3. Jika pemasang Android menampilkan **Update / Perbarui**, pilih itu.
-4. Force-stop dan buka kembali Instagram setelah update.
+## Kompatibilitas
 
-**Catatan tanda tangan APK:** Android hanya mengizinkan update di tempat jika nama paket, versi, dan sertifikat penandatanganan cocok. Beta `v0.1.0-beta.1` memakai debug key sementara dari GitHub Actions. Kalau build berikutnya menggunakan kunci berbeda, tombol **Update** akan gagal; nonaktifkan dan **uninstal aplikasi modulnya saja**, pasang APK baru, lalu aktifkan kembali di LSPosed. **Jangan hapus Instagram atau datanya.** Agar ke depannya update langsung bekerja konsisten, diperlukan kunci signing tetap milik pengelola.
+**Modul ini tidak dikunci ke satu nomor versi Android atau Instagram.** Selama elemen navigasi Instagram kompatibel, modul **berpotensi berjalan di versi lain**. Namun, versi yang belum diuji belum bisa dijamin semuanya berfungsi.
 
-## Batasan penting
+| Persyaratan | Keterangan |
+| :--- | :--- |
+| **Android** | Android 10+ (minimum instalasi APK: API 29); fitur tertentu tergantung Android/ROM |
+| **Instagram** | Aplikasi `com.instagram.android` terinstal |
+| **Framework** | LSPosed aktif, dengan scope Instagram |
+| **Perangkat** | Root atau lingkungan yang mendukung LSPosed |
+| **Versi lain** | Boleh dicoba; kompatibilitas belum seluruhnya diverifikasi |
 
-Efeknya belum sama dengan *Liquid Glass* bawaan iOS. Blur pada video Reels menggunakan pendekatan sampling berkala (sekitar dua frame per detik), bukan pembiasan compositor real-time. Beberapa video, konten terlindungi, atau konfigurasi perangkat bisa menyebabkan efek blur tidak tersedia. Sistem akan memilih kaca bening daripada tampilan putih atau hitam saat pengambilan gambar gagal.
+### Perangkat pengujian pengembang
 
-Swipe pada isi halaman juga belum mengubah adapter pager internal Instagram. Di beberapa transisi, halaman lain mungkin terlihat sesaat atau urutan swipe tidak berjalan persis seperti visual navbar.
+| Informasi | Konfigurasi |
+| :--- | :--- |
+| **Model HP** | **POCO F7 Ultra** |
+| **Android** | **Android 16 (API 36)** |
+| **Instagram** | **452.0.0.48.64** |
+| **Resolusi window berdasarkan log** | **1440 × 3200 piksel** |
+| **Paket aplikasi** | `com.instagram.android` |
+| **Nama ROM / build** | Belum tercatat |
 
-Jika pemutaran Reels macet, gerakan terganggu, atau navbar hilang, **nonaktifkan modul di LSPosed dan force-stop Instagram**.
+Data tersebut adalah **lingkungan pengujian**, bukan batasan pemasangan untuk pengguna lain. Laporan hasil uji di berbagai perangkat dan versi Instagram sangat membantu pengembangan.
 
-## Log, privasi, dan pelaporan
+## Instalasi
+
+1. Buka **[GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1)** dan unduh **APK modul**. Tersedia juga `SHA256SUMS.txt` untuk verifikasi checksum.
+2. Instal APK modul pada HP yang sudah menggunakan LSPosed.
+3. Buka **LSPosed → Modules**, aktifkan **Instagram Liquid Glass**, lalu pilih scope **Instagram (`com.instagram.android`)**.
+4. **Paksa berhenti (force-stop) Instagram**, lalu buka kembali.
+5. Uji semua tab, gesture geser, blur, dan buka-tutup komentar Reels.
+
+> [!WARNING]
+> Jika Instagram menjadi tidak stabil, video macet, atau tampilan bermasalah, nonaktifkan modul di LSPosed dan force-stop Instagram. **Jangan menghapus Instagram atau datanya** untuk mengatasi masalah modul.
+
+### Cara update
+
+**Update dilakukan manual dari GitHub**, tanpa updater otomatis di dalam modul.
+
+1. Unduh APK terbaru melalui [Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases).
+2. Buka file APK. Pilih **Update / Perbarui** apabila installer Android menampilkannya.
+3. Force-stop Instagram dan buka kembali setelah selesai.
+
+**Catatan:** update langsung hanya bisa jika nama paket, kode versi dan sertifikat signing kompatibel. Beta pertama memakai debug key sementara milik GitHub Actions. Jika versi baru berbeda sertifikat, **uninstal aplikasi modul saja**, pasang versi baru dan aktifkan kembali scope LSPosed. **Jangan uninstal Instagram.** Agar update mendatang selalu bisa dilakukan di tempat, pengembang perlu menggunakan signing key permanen.
+
+## Cara kerja
+
+```text
+   Tombol dan navigasi Instagram asli
+                  ↓
+        Hook navigasi LSPosed
+                  ↓
+       Renderer kapsul kaca
+         ├─ Foto/UI: blur latar
+         └─ Reels: PixelCopy terbatas
+```
+
+- **Navigasi:** tombol asli Instagram tetap dipakai. Urutan yang diinginkan adalah Home → Reels → DM → Profil → Search. Swipe isi halaman masih berbasis penyesuaian setelah perpindahan native terdeteksi.
+- **Efek kaca:** lapisan blur kecil, refleksi tepi, dan animasi lensa aktif. Blur Reels diambil sekitar **dua kali per detik**; jika tidak memungkinkan, kaca kembali bening.
+- **Visibilitas:** navbar disembunyikan dalam konteks tertentu untuk tidak menutupi konten Instagram.
+
+## Masalah umum dan privasi
+
+| Masalah | Yang bisa dicoba |
+| :--- | :--- |
+| Navbar tidak muncul | Periksa modul dan scope LSPosed; force-stop Instagram |
+| Blur kadang hilang | Beberapa video atau elemen layar tidak bisa disampling; ada fallback bening |
+| Video Reels macet | Nonaktifkan modul, jalankan Instagram lagi, kemudian laporkan langkah reproduksi |
+| Layar menyisakan ruang hitam | Sertakan versi perangkat/aplikasi dan log yang sudah disamarkan |
+| APK gagal diperbarui | Periksa signing; instal ulang **modul saja**, bukan Instagram |
 
 Log teknis dibuat secara lokal di:
 
@@ -80,26 +126,32 @@ Log teknis dibuat secara lokal di:
 Download/IGGlass-0.1-dev-YYYYMMDD-HHmmss.txt
 ```
 
-Log berisi informasi teknis seperti kondisi navigasi, ukuran View, dan kegagalan rendering. Potongan gambar yang diperlukan untuk efek blur diproses **dalam memori** dan tidak dimaksudkan untuk diunggah atau ditulis ke log. Modul ini tidak memiliki fitur login atau analitik jaringan sendiri.
-
-Saat membuat GitHub Issue, cantumkan versi Instagram, Android, LSPosed, modul, langkah reproduksi, dan log yang **sudah diperiksa agar tidak mengandung data pribadi**.
+Potongan gambar untuk blur diproses di memori, **tidak dimaksudkan untuk disimpan sebagai gambar atau diunggah ke server**. Modul tidak punya formulir login Instagram maupun endpoint telemetri terpisah. Periksa dan samarkan informasi pribadi sebelum membagikan log atau screenshot.
 
 ## Build dari source
 
-Diperlukan **JDK 17**, **Android SDK Platform/Build Tools 35**, **Gradle 8.9**, serta `app/libs/api-82.jar` (Xposed API 82, hanya untuk kompilasi).
+Perlu **JDK 17**, **Gradle 8.9**, **Android SDK Platform/Build Tools 35**, dan **Xposed API 82** (khusus kompilasi) di `app/libs/api-82.jar`.
 
 ```bash
 gradle --no-daemon :app:assembleDebug
 ```
 
-APK hasil build berada di `app/build/outputs/apk/debug/app-debug.apk`. Lihat [workflow build](.github/workflows/build-apk.yml) untuk proses lengkap.
+Output: `app/build/outputs/apk/debug/app-debug.apk`. Workflow lengkap ada di [build-apk.yml](.github/workflows/build-apk.yml).
 
-## Kontribusi, pengelolaan kode, dan lisensi
+## Kontribusi dan lisensi
 
-Orang lain boleh **mengajukan perubahan** melalui GitHub Pull Request. Namun, **hanya pengelola yang berwenang menyetujui dan melakukan merge ke branch `main`**. Mengajukan PR tidak otomatis memberikan hak untuk menerbitkan APK resmi.
+Lu boleh mengusulkan perubahan melalui **Pull Request**. Namun, **@zaidanfaiz** yang memutuskan perubahan mana yang diterima di branch `main`; proses review perlu didukung pengaturan perlindungan branch GitHub.
 
-Aturan [LICENSE](LICENSE) menggunakan ketentuan **source-available untuk kontribusi**, bukan lisensi open-source MIT untuk seluruh proyek. Penggunaan ulang secara bebas, distribusi ulang APK modifikasi, pemiroran, dan penerbitan ulang kode asli membutuhkan izin tertulis pemilik hak cipta. Komponen shader pihak ketiga tetap memiliki lisensi MIT sendiri seperti dijelaskan di [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Kode asli proyek menggunakan **[lisensi khusus source-available](LICENSE)**, bukan lisensi open-source yang mengizinkan distribusi bebas. Distribusi ulang proyek, APK modifikasi, dan penerbitan ulang membutuhkan izin. Jika repo dibuat public, GitHub tetap memungkinkan source dilihat, di-clone dan di-fork sesuai ketentuan platform; lisensi tidak bisa memblokir itu secara teknis.
 
-**Catatan GitHub:** jika repo dibuat public, orang secara teknis tetap dapat mengunduh, meng-clone, dan melakukan fork; hal itu tidak dapat dinonaktifkan hanya dengan menulis larangan dalam lisensi. Hak yang diberikan GitHub melalui ketentuan platform tetap berlaku. Proteksi branch serta review pemilik dapat mengendalikan **merge ke `main`**, bukan mencegah seluruh penyalinan kode.
+Baca juga **[CONTRIBUTING.md](CONTRIBUTING.md)** · **[SECURITY.md](SECURITY.md)** · **[CHANGELOG.md](CHANGELOG.md)** · **[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)**.
 
-Proyek independen; tidak berafiliasi dengan Instagram, Meta, Apple, atau LSPosed. Lihat [README utama (English)](README.md), [CONTRIBUTING](CONTRIBUTING.md), dan [SECURITY](SECURITY.md).
+---
+
+<div align="center">
+
+**Navigasi lebih bersih, pengalaman Instagram tetap familiar.**
+
+<sub>Proyek komunitas independen. Tidak berafiliasi dengan Instagram/Meta, Apple, atau LSPosed. Atribusi komponen pihak ketiga tersedia di THIRD_PARTY_NOTICES.md.</sub>
+
+</div>
