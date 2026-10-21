@@ -28,7 +28,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
- * v0.3 frosted-glass beta for Instagram's 5-tab navigation.
+ * v0.5 safe floating-glass beta for Instagram's 5-tab navigation.
  *
  * It relocates the ORIGINAL navigation buttons and draws a sampled, blurred
  * approximation of content behind them. This is not the native iOS shader.
@@ -37,16 +37,16 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public final class InstagramGlassHook implements IXposedHookLoadPackage {
     private static final String PACKAGE = "com.instagram.android";
     private static final WeakHashMap<View, Boolean> STYLED = new WeakHashMap<>();
-    private static final int HORIZONTAL_MARGIN_DP = 20;
-    private static final int BOTTOM_MARGIN_DP = 52;
-    private static final long MAX_FRAME_INTERVAL_NS = 50_000_000L; // up to 20 fps while scrolling
+    private static final int HORIZONTAL_MARGIN_DP = 16;
+    private static final int BOTTOM_MARGIN_DP = 12;
+    private static final long MAX_FRAME_INTERVAL_NS = 83_000_000L; // up to ~12 fps while scrolling
     private static final long ACTIVE_TAIL_NS = 700_000_000L;
     private static final long IDLE_REFRESH_MS = 550L;
     private static final WeakHashMap<Activity, GlassUpdater> SCENES = new WeakHashMap<>();
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
         if (!PACKAGE.equals(load.packageName)) return;
-        XposedBridge.log("IGGlass v0.4: " + load.processName);
+        XposedBridge.log("IGGlass v0.5: " + load.processName);
         XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent", MotionEvent.class,
                 new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
@@ -179,7 +179,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             GlassUpdater updater = new GlassUpdater(activity, host, shell, sampledBackdrop);
             SCENES.put(activity, updater);
             updater.start();
-            XposedBridge.log("IGGlass v0.4: floating real-time nav installed");
+            XposedBridge.log("IGGlass v0.5: compact floating nav installed");
         } catch (Throwable e) {
             XposedBridge.log("IGGlass: overlay failed, restoring: " + e);
             try {
@@ -224,7 +224,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
      * in that case sample the strip immediately above as a visual fallback.
      */
     private static void updateBackdrop(Activity activity, FrameLayout host,
-                                       FrameLayout shell, ImageView background) {
+                                       FrameLayout shell, ImageView background,
+                                       boolean duringScroll) {
         if (activity.isFinishing() || activity.isDestroyed()
                 || shell.getParent() != host || !shell.isAttachedToWindow()) return;
         if (shell.getWidth() <= 0 || shell.getHeight() <= 0) return;
@@ -239,7 +240,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 int w = shell.getWidth(), h = shell.getHeight();
 
                 Bitmap behind = sample(host, shell, x, y, w, h);
-                if (behind != null && textureScore(behind) < 11.0) {
+                if (!duringScroll && behind != null && textureScore(behind) < 11.0) {
                     Bitmap upper = sample(host, shell, x, y - h, w, h);
                     if (upper != null) {
                         if (textureScore(upper) > textureScore(behind) + 5.0) {
@@ -260,7 +261,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
     /**
      * Event-driven sampling instead of a fixed 900ms timer.
-     * During touch/scroll capture up to 20fps, sync with display vsync;
+     * During touch/scroll capture up to 12fps, sync with display vsync;
      * at rest sample infrequently to notice asynchronous image loads.
      * Stop frame scheduling when the scroll tail ends.
      */
@@ -281,7 +282,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                     return;
                 }
                 if (System.nanoTime() >= activeUntilNs) {
-                    updateBackdrop(activity, host, shell, background);
+                    updateBackdrop(activity, host, shell, background, false);
                 }
                 host.postDelayed(this, IDLE_REFRESH_MS);
             }
@@ -343,7 +344,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             }
             if (frameTimeNanos - lastFrameNs >= MAX_FRAME_INTERVAL_NS) {
                 lastFrameNs = frameTimeNanos;
-                updateBackdrop(activity, host, shell, background);
+                updateBackdrop(activity, host, shell, background, true);
             }
             if (System.nanoTime() < activeUntilNs) queueFrame();
         }
