@@ -351,9 +351,11 @@ final class DevGlassUi {
         int originalIndex = oldParent.indexOfChild(nav);
         if (originalIndex < 0) return null;
         ViewGroup.LayoutParams oldParams = nav.getLayoutParams();
-        boolean dark = nativeBackgroundIsDark(nav);
-        DevFileLog.note("theme=" + (dark ? "DARK" : "LIGHT")
-                + " detected from Instagram native navbar background");
+        // The optical material is ALWAYS neutral/clear regardless of both
+        // Instagram's dark/light settings and the current post/video colors.
+        // 'dark' remains for legacy backdrop capture fill only.
+        boolean dark = true;
+        DevFileLog.note("glass material=NEUTRAL_CLEAR; no theme switching");
 
         // Single native navigation instance: detach once, preserve all listeners.
         DevGesturePill main = new DevGesturePill(activity);
