@@ -168,6 +168,7 @@ final class DevGlassUi {
 
         private void selectSearch() {
             selectionSearch = true;
+            updateVideoGlass(false);
             if (lens != null) lens.animate().alpha(0f)
                     .setDuration(HIGHLIGHT_ANIM_MS).start();
             if (searchPill != null) {
@@ -181,10 +182,28 @@ final class DevGlassUi {
         void selectMain(int index, boolean animated) {
             selectionSearch = false;
             activeIndex = Math.max(0, Math.min(nav.getChildCount() - 1, index));
+            updateVideoGlass(activeIndex == 1);
             if (lens != null) {
                 lens.animate().alpha(1f).setDuration(140).start();
             }
             nav.post(() -> positionLens(animated));
+        }
+
+        boolean isReelsActive() { return !selectionSearch && activeIndex == 1; }
+
+        private void updateVideoGlass(boolean onReels) {
+            updateVideoLayer(mainPill, onReels);
+            updateVideoLayer(searchPill, onReels);
+        }
+
+        private static void updateVideoLayer(FrameLayout shell, boolean onReels) {
+            if (shell == null) return;
+            for (int i = 0; i < shell.getChildCount(); i++) {
+                View child = shell.getChildAt(i);
+                if (child instanceof DevRefractiveBackdrop) {
+                    ((DevRefractiveBackdrop) child).setVideoMode(onReels);
+                }
+            }
         }
 
         void positionLens(boolean animated) {
