@@ -2,6 +2,67 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Latest experimental build: **0.1-dev-r17 — custom 5-page swipe order**
+
+Requested gesture order is now:
+
+`Home (native 0) → Reels (1) → DM inbox (2) → OWN Profile (4) → Search (3)`
+
+The visual glass layout was already **Home, Reels, DM, Profile** inside the
+main capsule with a separate **Search** bubble to its right. This experimental
+build also tries to align **horizontal PAGE swipes** with that order.
+
+### Navigation implementation
+
+1. **Glass pill swiping.** The existing shield intercepts touches ONLY
+   inside the pill. A continuous drag from the four-item capsule can now
+   land on the separate Search circle as a fifth destination. A drag back
+   from the Search circle into the main capsule selects Profile. Original
+   Instagram click listeners still perform the actual navigation.
+2. **Content swiping (experimental best-effort).** `DevOrderedPageSwipe`
+   observes `Activity.dispatchTouchEvent` *after* Instagram has processed
+   the events. It records a deliberate horizontal gesture, waits for
+   Instagram's own selected native tab to change, then remaps only genuine
+   **MAIN-PAGER** transitions that would be in the wrong order. It **never
+   consumes ACTION_DOWN/MOVE or rewrites IG's ViewPager adapter**.
+   A photo carousel swipe that does not change native tabs is ignored.
+   IG native order remains `0,1,2,3,4` internally, so a transition from
+   DM to Profile can briefly visit native Search before correction.
+3. **Profile → Search at native boundary.** A substantial left swipe on
+   the top portion of the user's **own profile header** (not the grid or
+   other people's profiles) navigates via the real Search tab. This
+   exception is gated by runtime OWN_PROFILE detection. Search at the
+   custom rightmost boundary restores itself if Instagram natively
+   advances to Profile on a left swipe.
+4. **Preserved safeguards:** actual Reels video swipes are never
+   intercepted. The blur and fullscreen fixes from r12–r16 remain. Opened
+   DM conversations, Stories, comments and other-user profiles do not
+   receive custom routing; the overlay stays hidden there.
+5. **Diagnostics:** look for `r17 page swipe observed`,
+   `r17 content swipe routed`, `r17 native swipe already matches`,
+   `r17 ignored ordinary horizontal swipe`, and
+   `r17 glass swipe main->Search` in the newest Downloads log.
+
+### Device acceptance checklist
+
+- From the NAVBAR, drag Home → Reels → DM → Profile → Search
+  (Search is a separate right circle), then drag Search ← Profile.
+- From the CONTENT area, try an intentional horizontal native-page swipe
+  in each direction and confirm the resulting tab order, especially
+  **DM → Profile instead of DM → Search** and
+  **Search → Profile when swiping backward**.
+- On OWN Profile, swipe left deliberately **across the header** to reach
+  Search; a swipe across the media grid is intentionally left untouched.
+- Verify image carousel horizontal swipes, vertical Reels video scroll,
+  Reels long-press speed, comment sheet playback, and DM opened-chat UI
+  continue to work unchanged.
+- If a page doesn't remap, send the log. Since this is an overlay-module
+  adapter over IG452 rather than an internal pager patch, it relies on
+  the native tab's selection state being observable. There is **no claim
+  that the actual native ViewPager adapter has been reordered**.
+  If IG changes its selection implementation, further targeted pager
+  instrumentation will be required before this can be fully seamless.
+
 ## Latest diagnostic: **0.1-dev-r16 — Search click fix + stable frosted scrolling**
 
 From the device's 22:55:49–22:56:54 r15 log:
