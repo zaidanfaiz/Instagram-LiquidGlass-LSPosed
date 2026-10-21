@@ -120,6 +120,9 @@ final class DevVideoBackdrop {
                         if (noSurfaceLogged) noSurfaceLogged = false;
                         DevFileLog.note("Reels: SurfaceView PixelCopy SUCCESS ("
                                 + frame.getWidth() + "x" + frame.getHeight() + ")");
+                        // Keep the optical image alive at a deliberately low
+                        // rate (about 0.8 fps). GPU video itself stays 60fps.
+                        request(1250);
                     } else if (result != PixelCopy.SUCCESS) {
                         failureCount++;
                         if (failureCount <= 2)
