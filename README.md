@@ -2,6 +2,89 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Latest engineering test: **0.1-dev-r14 — gesture isolation + proactive fullscreen margins**
+
+Based on the user's Android 16 screenshots and the two logs from
+22:12:52 and 22:13:07 on October 21, 2026:
+
+- The 1440×3200 window/decor/content reported full dimensions and the
+  navigation inset was **0**, so the black bar is NOT explained by a
+  smaller Android window. IG452 itself reinstated **180px native tab
+  reservation and 60px root margin** after navigation; this was visible
+  in the r13 log when the late repair occurred after returning to a
+  static tab. The 6.5s periodic fix can be postponed by an active
+  SurfaceView and is an inadequate permanent solution.
+- A Reels drag can leak `ACTION_DOWN` to the playback surface before the
+  old horizontal gesture detector takes ownership, triggering Instagram's
+  hold-to-fast-forward action instead of sliding the selection.
+- The Home glass had a technically valid tiny background sample, but its
+  blur was visually subtle; Reels remained clear by design to protect
+  video.
+
+### r14 implementation
+
+**Fullscreen: guard the layout at its source.** Only verified IG452
+`layout_container_main`, `swipeable_tab_view_pager`,
+`layout_bottom_searchbar` and
+`layout_container_center_right_coordinator_layout` View objects are
+registered with `DevNativeMarginGuard`. It intercepts their exact
+`View.setLayoutParams` call only if the bottom margin equals the
+verified 180px or 60px native reservation and changes the incoming
+margin to zero **BEFORE Instagram performs its own layout**. There is no
+second post-layout correction while Reels is decoding, and no global
+fullscreen/window flags are modified. Hooks are deregistered on teardown,
+preserving original margins.
+
+**Reels touch conflict:** `DevGesturePill` captures touch DOWN immediately
+inside its rectangular capsule instead of waiting for horizontal motion
+to exceed touch slop and potentially dispatching a seek/fast-forward
+hold into the playing Reel. It supports horizontal slide and tapping;
+both actions call the original Instagram tab listener via
+`performClick`/native fallback. The actual search pill remains a
+separate native target. Finger movements outside the capsule remain
+owned by Instagram. Avoid routing a touch both through the capsule and
+the Activity-level UP hook.
+
+**Frost / optical:** the Home-only cached bitmap renderer retains the
+non-video 23% sample, slow-capture rejection, scroll-frame invalidation,
+and blank-frame rejection from r13. It now blends **58%** of the sampled
+GPU-blurred view (5dp blur radius on the already-downscaled frame),
+instead of 42%/11dp. Since actual pixels are sampled, there is no
+white/black material fill. Reels video remains **UNSAMPLED**; preserving
+working playback is the priority.
+
+**HyperLight research:** HyperLight 1.1.7 (API 101) documents a
+multi-stage liquid-glass pipeline: background-capture scaling,
+configurable frame-refresh budget, chromatic dispersion, refraction,
+outline, and touch halo. The public repository currently publishes
+documentation and release APKs for a HyperOS/SystemUI-specific module
+with no directly portable Instagram implementation. We do not copy
+non-licensed binary/decompiled code into this module. The uploaded
+binary has **not** been decompiled/inspected in the sandbox. The
+supported public docs informed the design, not an assertion of access
+to HyperLight's proprietary renderer.
+
+### Mandatory device acceptance tests
+
+1. Home → Reels → DM inbox → own Profile → Home. The Home feed should
+   continue to fill the entire 1440×3200 app window, without waiting
+   6.5s for the empty bottom area to disappear.
+2. Start a Reel. Drag a finger horizontally across the GLASS PILL
+   (not the video). The selected lens should switch tab in one attempt.
+   Reels should **not** enter hold-to-speed mode.
+3. Reels comments open → close 3×: both audio and picture must continue.
+4. Check the Home effect over a detailed static picture: fine
+   content-aware blur, not a white slab, and no leftover ghosted
+   image while scrolling. Reels remains clear with a rim.
+5. Attach the Downloads log. Check for `r14 prevented native bottom
+   reservation`, `r14 isolated pill tap`, and
+   `gesture: glass selection drag END`.
+6. If video playback or navigation regresses, disable the LSPosed
+   module and force-stop Instagram to restore the original experience.
+
+*This is not a verified iOS 27 live compositor recreation.* It is a
+conservative prototype preserving user-confirmed video stability.
+
 ## Latest test: **0.1-dev-r13 — safe fullscreen recovery + optical frost**
 
 Target: Instagram 452.0.0.48.64, Android 16, LSPosed. The r12 device
