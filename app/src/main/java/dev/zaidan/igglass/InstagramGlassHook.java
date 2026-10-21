@@ -28,7 +28,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
- * v0.5 safe floating-glass beta for Instagram's 5-tab navigation.
+ * v0.6 legacy-navbar-removal beta for Instagram's 5-tab navigation.
  *
  * It relocates the ORIGINAL navigation buttons and draws a sampled, blurred
  * approximation of content behind them. This is not the native iOS shader.
@@ -46,7 +46,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
         if (!PACKAGE.equals(load.packageName)) return;
-        XposedBridge.log("IGGlass v0.5: " + load.processName);
+        XposedBridge.log("IGGlass v0.6: " + load.processName);
         XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent", MotionEvent.class,
                 new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
@@ -164,14 +164,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             clearOpaqueFullSizeWrappers(nav, nav.getWidth(), height, 0);
             shell.addView(outline, new FrameLayout.LayoutParams(-1, -1));
 
-            // Collapse only vacant small placeholders. Never hide a container
-            // with feed content, and never alter Instagram's click listeners.
-            if (parent.getChildCount() == 0
-                    && parent.getHeight() > 0
-                    && parent.getHeight() <= dp(nav, 110)
-                    && parent.getParent() instanceof ViewGroup) {
-                parent.setVisibility(View.GONE);
-            }
+            // Remove the former bottom bar's *layout slot*, including small
+            // non-clickable decorative wrappers. Let the feed resize normally.
+            // Never remove a container holding feed, stories, or live controls.
+            collapseLegacyNavSlot(parent, host, height);
             host.bringChildToFront(shell);
             STYLED.put(nav, true);
             GlassUpdater old = SCENES.remove(activity);
@@ -179,7 +175,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             GlassUpdater updater = new GlassUpdater(activity, host, shell, sampledBackdrop);
             SCENES.put(activity, updater);
             updater.start();
-            XposedBridge.log("IGGlass v0.5: compact floating nav installed");
+            XposedBridge.log("IGGlass v0.6: single floating nav installed");
         } catch (Throwable e) {
             XposedBridge.log("IGGlass: overlay failed, restoring: " + e);
             try {
@@ -197,6 +193,81 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             fallback(nav);
             STYLED.put(nav, true);
         }
+    }
+
+
+    /**
+     * The old Instagram bottom-navigation *slot* is not the glass overlay:
+     * the actual tab row has already been moved to 'shell'. With the former
+     * wrapper still measured in the app, the feed stops above an opaque band.
+     *
+     * Collapse only small, bottom-anchored containers with no interactive or
+     * textual content remaining. Do not touch the system navigation bar.
+     */
+    private static void collapseLegacyNavSlot(ViewGroup formerParent,
+                                               FrameLayout host, int navHeight) {
+        View candidate = formerParent;
+        int collapsed = 0;
+        for (int depth = 0; depth < 5; depth++) {
+            if (!(candidate instanceof ViewGroup) || candidate == host) break;
+            ViewGroup group = (ViewGroup) candidate;
+            View next = group.getParent() instanceof View
+                    ? (View) group.getParent() : null;
+            if (next == null || !descendsFrom(group, host)) break;
+
+            int slotHeight = group.getHeight();
+            if (slotHeight <= 0 || slotHeight > navHeight + dp(group, 45)
+                    || slotHeight > dp(group, 135)) break;
+
+            int[] slotXY = new int[2];
+            int[] hostXY = new int[2];
+            group.getLocationOnScreen(slotXY);
+            host.getLocationOnScreen(hostXY);
+            int relativeTop = slotXY[1] - hostXY[1];
+            if (relativeTop < host.getHeight() * 0.66f) break;
+            if (!isEmptyNavDecoration(group, 0)) {
+                XposedBridge.log("IGGlass: preserve live slot "
+                        + group.getClass().getSimpleName()
+                        + " children=" + group.getChildCount());
+                break;
+            }
+
+            group.setBackground(null);
+            group.setMinimumHeight(0);
+            group.setVisibility(View.GONE);
+            group.requestLayout();
+            collapsed++;
+            XposedBridge.log("IGGlass: collapsed old navbar slot: "
+                    + group.getClass().getSimpleName()
+                    + " h=" + slotHeight + " children=" + group.getChildCount());
+            candidate = next;
+        }
+        if (collapsed == 0) {
+            // Visible in LSPosed logs for users whose Instagram version has a
+            // proprietary bottom panel that cannot be safely collapsed.
+            XposedBridge.log("IGGlass: old nav slot not safely collapsible; "
+                    + "retain its original layout pending hierarchy analysis");
+        }
+        host.requestLayout();
+    }
+
+    private static boolean isEmptyNavDecoration(View view, int depth) {
+        if (depth >= 5) return false;
+        if (view.getVisibility() != View.VISIBLE) return true;
+        if (view.hasOnClickListeners() || view.isClickable()
+                || view.isLongClickable() || view.isFocusable()) return false;
+        if (view instanceof android.widget.TextView
+                && ((android.widget.TextView) view).length() > 0) return false;
+        if (view.getContentDescription() != null
+                && view.getContentDescription().length() > 0) return false;
+        if (!(view instanceof ViewGroup)) return true;
+        ViewGroup group = (ViewGroup) view;
+        if (group.getChildCount() > 12) return false;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            if (!isEmptyNavDecoration(group.getChildAt(i), depth + 1))
+                return false;
+        }
+        return true;
     }
 
     private static void clearOpaqueFullSizeWrappers(ViewGroup nav,
