@@ -93,6 +93,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         private DevGlassUi.Scene scene;
         private DevEdgeSpaceFix.Session edgeSpace;
         private DevGlassBackdrop frost;
+        private DevVideoGlassCapture videoGlass;
         private DevOrderedPageSwipe orderedPageSwipe;
         private boolean running;
         private boolean resumed;
@@ -114,6 +115,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                             DevFileLog.note("native nav tree changed; attempting safe rebind");
                             if (frost != null) frost.stop();
                             frost = null;
+                            if (videoGlass != null) videoGlass.stop();
+                            videoGlass = null;
                             if (orderedPageSwipe != null) {
                                 orderedPageSwipe.stop();
                                 orderedPageSwipe = null;
@@ -163,6 +166,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         void onPause() {
             resumed = false;
             if (frost != null) frost.setEnabled(false);
+            if (videoGlass != null) videoGlass.setEnabled(false);
             if (scene != null) scene.show(false);
             // Do NOT restore the 60px root margin here. Opening a modal
             // comment sheet, another Window or an input UI can briefly pause
@@ -186,6 +190,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                     scene.sourceParent) != null) {
                 scene.show(false);
                 if (frost != null) frost.setEnabled(false);
+                if (videoGlass != null) videoGlass.setEnabled(false);
                 decor.postDelayed(this::sync, 240);
                 return;
             }
@@ -221,6 +226,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (frost != null) {
                 frost.stop();
                 frost = null;
+            }
+            if (videoGlass != null) {
+                videoGlass.stop();
+                videoGlass = null;
             }
             if (orderedPageSwipe != null) {
                 orderedPageSwipe.stop();
@@ -280,7 +289,11 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // overlaps the glass. Automatically suspend on modal comments.
             frost = new DevGlassBackdrop(activity, scene);
             frost.start();
-            DevFileLog.note("r15: nonvideo GPU optical frost enabled; Reels remains rim-only");
+            // Experimental async SurfaceView sampling for Reels. Separate
+            // material layer, NEVER a player hook or a layout modification.
+            videoGlass = new DevVideoGlassCapture(activity, scene);
+            DevFileLog.note("r18: Home static frost + Reels PixelCopy frost;"
+                    + " own-profile/DM/search retained; fallback fully clear");
             sync();
         }
 
@@ -290,15 +303,18 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             String state = reason == null ? "visible" : "hidden:" + reason;
             boolean show = reason == null;
             scene.show(show);
-            // The blur never samples Reels nor any overlaid comment modal.
+            // Two independent capture pipelines: static Home/DM/Explore vs
+            // async Reels SurfaceView. Neither is active in comments/chat.
             if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
+            if (videoGlass != null) videoGlass.setEnabled(show && scene.isReelsActive());
             // Neither setActive(show) nor margin reclamation may run in
             // periodic sync: it forces repeated setLayoutParams() on the
             // live video coordinator, which can freeze SurfaceView pictures
             // after dismissing the comments sheet. Installer owns insets.
             if (show) scene.syncSelection();
-            // A new native selection can change to Reels during syncSelection.
+            // Native tab selection can change during syncSelection.
             if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
+            if (videoGlass != null) videoGlass.setEnabled(show && scene.isReelsActive());
 
             // IG452 may restore an old 180px reservation without invoking
             // setLayoutParams on the previously watched instances. The r14
