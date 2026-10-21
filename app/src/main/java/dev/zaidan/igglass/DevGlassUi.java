@@ -110,7 +110,11 @@ final class DevGlassUi {
         }
 
         void show(boolean show) {
-            int visibility = show ? View.VISIBLE : View.GONE;
+            // INVISIBLE retains the exact FrameLayout size and position:
+            // unlike GONE it does not force a geometry pass while the Reel
+            // comment sheet is sliding over an active SurfaceView decoder.
+            // INVISIBLE views also stop receiving touches.
+            int visibility = show ? View.VISIBLE : View.INVISIBLE;
             if (mainPill.getVisibility() != visibility) {
                 mainPill.setVisibility(visibility);
             }
