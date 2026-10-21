@@ -1,0 +1,15 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'dev.zaidan.igglass'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'dev.zaidan.igglass'
+        minSdk 29
+        targetSdk 28
+        versionCode 1
+        versionName '0.1-experimental'
+    }
+}
+dependencies {
+    compileOnly files('libs/api-82.jar')
+}

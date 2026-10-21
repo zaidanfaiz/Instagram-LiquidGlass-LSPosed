@@ -1,0 +1,37 @@
+name: Build LSPosed APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install SDK 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Download compile-only Xposed API v82
+        run: |
+          mkdir -p app/libs
+          curl --fail --location --retry 3 --silent --show-error \
+            https://repository-cdn.liferay.com/nexus/content/repositories/gradle-plugins/de/robv/android/xposed/api/82/api-82.jar \
+            -o app/libs/api-82.jar
+          test "$(wc -c < app/libs/api-82.jar)" -gt 20000
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Instagram-LiquidGlass-LSPosed-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
