@@ -226,6 +226,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (!state.equals(lastReason)) {
                 if (show && frost != null) frost.request(550);
                 lastReason = state;
+                scene.auditMaterial(state);
                 DevFileLog.note("screen=" + state
                         + "; fragments=" + DevScreenDetector.fragmentNames(activity));
             }
