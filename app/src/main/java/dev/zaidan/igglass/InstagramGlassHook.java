@@ -393,9 +393,11 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
      */
     private static void updateBackdrop(Activity activity, FrameLayout host,
                                        FrameLayout shell, ImageView background,
+                                       FrameLayout otherShell,
                                        boolean duringScroll) {
         if (activity.isFinishing() || activity.isDestroyed()
-                || shell.getParent() != host || !shell.isAttachedToWindow()) return;
+                || shell.getParent() != host || !shell.isAttachedToWindow()
+                || shell.getVisibility() != View.VISIBLE) return;
         if (shell.getWidth() <= 0 || shell.getHeight() <= 0) return;
         if (activity.hasWindowFocus()) {
             try {
@@ -407,9 +409,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 int y = navXY[1] - hostXY[1];
                 int w = shell.getWidth(), h = shell.getHeight();
 
-                Bitmap behind = sample(host, shell, x, y, w, h);
+                Bitmap behind = sample(host, shell, otherShell, x, y, w, h);
                 if (!duringScroll && behind != null && textureScore(behind) < 11.0) {
-                    Bitmap upper = sample(host, shell, x, y - h, w, h);
+                    Bitmap upper = sample(host, shell, otherShell, x, y - h, w, h);
                     if (upper != null) {
                         if (textureScore(upper) > textureScore(behind) + 5.0) {
                             behind.recycle();
@@ -426,12 +428,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         }
     }
 
-
     /**
-     * Event-driven sampling instead of a fixed 900ms timer.
-     * During touch/scroll capture up to 12fps, sync with display vsync;
-     * at rest sample infrequently to notice asynchronous image loads.
-     * Stop frame scheduling when the scroll tail ends.
+     * Sample both pills independently, excluding both floating shells from
+     * each bitmap. Keep nav visibility synced to Instagram's active screen.
      */
     private static final class GlassUpdater
             implements Choreographer.FrameCallback, ViewTreeObserver.OnScrollChangedListener {
@@ -439,41 +438,86 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         private final FrameLayout host;
         private final FrameLayout shell;
         private final ImageView background;
+        private final GlassV9Enhancements.Setup glass;
         private long lastFrameNs;
         private long activeUntilNs;
+        private long lastVisibilityCheckNs;
+        private String previousHideReason = "uninitialized";
         private boolean frameQueued;
         private boolean stopped;
+
         private final Runnable idleRefresh = new Runnable() {
             @Override public void run() {
                 if (!isAlive()) {
                     stop();
                     return;
                 }
+                syncScreenVisibility();
                 if (System.nanoTime() >= activeUntilNs) {
-                    updateBackdrop(activity, host, shell, background, false);
+                    updateGlass(false);
                 }
                 host.postDelayed(this, IDLE_REFRESH_MS);
             }
         };
 
         GlassUpdater(Activity activity, FrameLayout host, FrameLayout shell,
-                     ImageView background) {
+                     ImageView background, GlassV9Enhancements.Setup glass) {
             this.activity = activity;
             this.host = host;
             this.shell = shell;
             this.background = background;
+            this.glass = glass;
         }
 
         void start() {
             if (!isAlive()) return;
             host.getViewTreeObserver().addOnScrollChangedListener(this);
             activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
+            syncScreenVisibility();
             queueFrame();
             host.postDelayed(idleRefresh, IDLE_REFRESH_MS);
         }
 
+        private void syncScreenVisibility() {
+            if (!isAlive()) return;
+            long now = System.nanoTime();
+            if (now - lastVisibilityCheckNs < 250_000_000L) return;
+            lastVisibilityCheckNs = now;
+            String reason;
+            try {
+                reason = NavScreenInspector.hideReason(activity, glass.nav);
+            } catch (Throwable e) {
+                XposedBridge.log("IGGlass-SCREEN: screen detection failed: " + e);
+                return;
+            }
+            boolean show = reason == null;
+            int visibility = show ? View.VISIBLE : View.GONE;
+            if (shell.getVisibility() != visibility) shell.setVisibility(visibility);
+            if (glass.searchShell != null
+                    && glass.searchShell.getVisibility() != visibility) {
+                glass.searchShell.setVisibility(visibility);
+            }
+            String key = show ? "visible" : reason;
+            if (!key.equals(previousHideReason)) {
+                previousHideReason = key;
+                XposedBridge.log("IGGlass-SCREEN: " + (show ? "visible" : "hidden="+reason)
+                        + " foreground=" + NavScreenInspector.foregroundSummary(activity));
+            }
+        }
+
+        private void updateGlass(boolean duringScroll) {
+            if (shell.getVisibility() != View.VISIBLE) return;
+            updateBackdrop(activity, host, shell, background,
+                    glass.searchShell, duringScroll);
+            if (glass.searchShell != null && glass.searchBackdrop != null) {
+                updateBackdrop(activity, host, glass.searchShell,
+                        glass.searchBackdrop, shell, duringScroll);
+            }
+        }
+
         void onTouch(MotionEvent event) {
             if (stopped || event == null) return;
+            glass.onTouch(event);
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                 case MotionEvent.ACTION_MOVE:
@@ -481,6 +525,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 case MotionEvent.ACTION_CANCEL:
                     activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
                     queueFrame();
+                    if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                        // Wait until Instagram commits its tab/fragment navigation.
+                        host.postDelayed(this::syncScreenVisibility, 200);
+                    }
                     break;
                 default: break;
             }
@@ -488,7 +536,6 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
         @Override public void onScrollChanged() {
             if (stopped) return;
-            // Keeps updating after finger release while a fling is in motion.
             activeUntilNs = System.nanoTime() + ACTIVE_TAIL_NS;
             queueFrame();
         }
@@ -512,7 +559,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             }
             if (frameTimeNanos - lastFrameNs >= MAX_FRAME_INTERVAL_NS) {
                 lastFrameNs = frameTimeNanos;
-                updateBackdrop(activity, host, shell, background, true);
+                syncScreenVisibility();
+                updateGlass(true);
             }
             if (System.nanoTime() < activeUntilNs) queueFrame();
         }
@@ -528,9 +576,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
     }
 
     private static Bitmap sample(FrameLayout host, FrameLayout shell,
+                                 FrameLayout otherShell,
                                  int x, int y, int w, int h) {
-        // Low-resolution offscreen render; skip the floating glass layer itself
-        // without calling setVisibility(), which can invalidate layout/scroll.
         final float scale = .30f;
         Bitmap bitmap = Bitmap.createBitmap(
                 Math.max(1, (int) (w * scale)),
@@ -545,7 +592,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (host.getBackground() != null) host.getBackground().draw(canvas);
             for (int i = 0; i < host.getChildCount(); i++) {
                 View child = host.getChildAt(i);
-                if (child == shell || child.getVisibility() != View.VISIBLE) continue;
+                if (child == shell || child == otherShell
+                        || child.getVisibility() != View.VISIBLE) continue;
                 int saved = canvas.save();
                 canvas.translate(child.getLeft() - host.getScrollX(),
                         child.getTop() - host.getScrollY());
