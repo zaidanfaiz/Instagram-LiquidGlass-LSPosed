@@ -2,6 +2,66 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current test build: **0.1-dev-r5 glass material fix**
+
+Device feedback from the r4 screenshots and Downloads log: the home and
+Reels four-tab bar is almost opaque black, the separately relocated Search
+button turns **solid white**, and both glass controls incorrectly stay visible
+over the Direct inbox and Instagram profile. The r4 log confirms functioning
+180px/60px insets and native drag tab activation, but does not prove the
+background visually resembles iOS Liquid Glass.
+
+This revision targets **those specific regressions**, rather than rewriting
+native tab navigation again:
+
+- Preserve **all original Instagram tab/click listeners** while clearing
+  full-height opaque backgrounds carried by individual tab surfaces. Earlier
+  builds cleared only the outer tab row, potentially leaving another opaque
+  native layer *above* the custom glass.
+- Keep the original Search view physically present as a **transparent touch
+  target**, and render a crisp, nonclickable magnifier glyph on top of the
+  circular glass button. This prevents Instagram's native white Search-state
+  background from washing out the separate glass circle. The original
+  view alpha is restored on safe module teardown.
+- Lighten both *procedural* glass layers toward the user's reference:
+  translucent neutral silver/grey, double-reflection rim, glossy top lip,
+  moving active lens, cached background UV refraction and GPU touch ripple.
+  Never turn the complete bar into a flat opaque white rectangle.
+- Besides exact, visible Instagram resource-ID checks, detect **Direct inbox**
+  using multiple fixed local UI labels (e.g. Utama + Permintaan) and
+  **Profile** using multiple labels (e.g. Edit profil + Bagikan profil).
+  Long/private text is not inspected, and no chat contents or names are
+  written to logs. Both pills should be hidden on detected pages.
+- The successful v0.8 **180px native tab reservation fix** and guarded 60px
+  root app-owned gap correction are unchanged. Snapshot capture remains
+  throttled with a slow-device fallback, and automatic debugging continues
+  to `Download/IGGlass-0.1-dev-*.txt`.
+
+### Verify on Instagram 452 / Android 16
+
+1. Install **only the latest successful v0.1-dev-r5** GitHub Actions debug
+   APK, enable LSPosed scope for Instagram and force-stop/reopen Instagram.
+2. On bright Home images and dark Reels verify the four-button pill looks
+   smoky translucent glass, not solid black. The Search circle should no
+   longer be a white disk and should still **open Search normally**.
+3. Normal taps, badge/profile avatar, Reels, swipe-to-select the active
+   lens, and scroll/DM gestures must remain operational.
+4. Open **Direct inbox**, **your profile**, **another user's profile** and
+   **Story/status**. On detected detail pages both custom glass pills should
+   disappear and reappear after Back. If any remain, include screenshots
+   and logs for targeted detection improvements.
+5. In Files > Downloads, upload the latest
+   `IGGlass-0.1-dev-YYYYMMDD-HHmmss.txt`. Useful lines include
+   `glass: removed native ... panel`, `screen signature`, `screen=hidden`,
+   `frost:`, and `gesture:`.
+
+**Limit:** Liquid Glass here is an approximation with cached blurred/reflected
+content. It is not pixel-perfect iOS glass, and Android's real-time
+SurfaceView rendering is not universally capturable. GitHub Actions success
+confirms compilation, *not* the look, frame rate or correct screen detection.
+If navigation is broken, disable this LSPosed module and force-stop Instagram;
+the last phone-confirmed black-strip fix was v0.8.
+
 ## Current test build: **0.1-dev-r4 refractive glass concept**
 
 This revision is guided directly by the supplied Instagram screenshots and
