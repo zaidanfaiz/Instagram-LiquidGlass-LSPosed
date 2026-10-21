@@ -3,6 +3,9 @@ package dev.zaidan.igglass;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -38,12 +41,12 @@ final class DevNavGlyphs extends View {
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         setWillNotDraw(false);
         backing.setStyle(Paint.Style.STROKE);
-        backing.setStrokeWidth(5.5f * density);
+        backing.setStrokeWidth(3.4f * density);
         backing.setStrokeJoin(Paint.Join.ROUND);
         backing.setStrokeCap(Paint.Cap.ROUND);
-        backing.setColor(0xBF0B131D);
+        backing.setColor(0xAB0B131D);
         foreground.setStyle(Paint.Style.STROKE);
-        foreground.setStrokeWidth(2.8f * density);
+        foreground.setStrokeWidth(2.1f * density);
         foreground.setStrokeJoin(Paint.Join.ROUND);
         foreground.setStrokeCap(Paint.Cap.ROUND);
         foreground.setColor(0xFFF9FCFF);
@@ -66,17 +69,83 @@ final class DevNavGlyphs extends View {
                     + (item.getLeft() + item.getRight()) * .5f;
             float y = nativeTabs.getTop()
                     + (item.getTop() + item.getBottom()) * .5f;
-            float size = Math.min(24f * density,
-                    Math.min(item.getWidth() * .31f, item.getHeight() * .37f));
+            float size = Math.min(17.5f * density,
+                    Math.min(item.getWidth() * .24f, item.getHeight() * .29f));
             if (size <= 0) continue;
             int saved = canvas.save();
             canvas.translate(x, y);
-            if (index == 0) drawHome(canvas,size);
-            else if (index == 1) drawReels(canvas,size);
-            else if (index == 2) drawInbox(canvas,size);
-            else drawProfile(canvas,size,item);
+            // Prefer Instagram's own Drawable asset and active-state shape;
+            // only use hand-drawn paths when the native icon is a custom
+            // non-ImageView renderer with no drawable to reuse.
+            if (index == 3) {
+                drawProfile(canvas,size,item);
+            } else if (!drawNativeDrawable(canvas,item,size)) {
+                if (index == 0) drawHome(canvas,size);
+                else if (index == 1) drawReels(canvas,size);
+                else drawInbox(canvas,size);
+            }
             canvas.restoreToCount(saved);
         }
+    }
+
+    /**
+     * Reuse actual Instagram image assets even though the original row has
+     * alpha=0 for background isolation. This preserves brand icon shapes.
+     */
+    private boolean drawNativeDrawable(Canvas canvas, View nativeTab, float r) {
+        ImageView image = findNativeIcon(nativeTab, 0);
+        if (image == null || image.getDrawable() == null) return false;
+        Drawable original = image.getDrawable();
+        Drawable draw = original;
+        boolean shared = true;
+        try {
+            if (original.getConstantState() != null) {
+                draw = original.getConstantState().newDrawable(
+                        getResources()).mutate();
+                shared = false;
+            }
+            android.graphics.Rect oldBounds = new android.graphics.Rect(draw.getBounds());
+            int oldAlpha = draw.getAlpha();
+            int side = Math.round(r * 1.42f);
+            draw.setBounds(-side,-side,side,side);
+            if (!shared) draw.setColorFilter(
+                    new PorterDuffColorFilter(Color.WHITE,PorterDuff.Mode.SRC_IN));
+            // Tiny dark halo for contrast against bright feeds. Native artwork
+            // itself is drawn as-is using Instagram's original Drawable.
+
+            draw.draw(canvas);
+            if (shared) {
+                draw.setBounds(oldBounds);
+                draw.setAlpha(oldAlpha);
+            }
+            return true;
+        } catch (Throwable failure) {
+            DevFileLog.note("native icon drawable fallback "
+                    + failure.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private ImageView findNativeIcon(View item,int depth) {
+        if (item == null || depth > 6) return null;
+        int small = Math.round(13f*density);
+        int large = Math.round(62f*density);
+        if (item instanceof ImageView) {
+            ImageView image = (ImageView)item;
+            if (image.getDrawable() != null
+                    && image.getWidth() >= small && image.getWidth() <= large
+                    && image.getHeight() >= small && image.getHeight() <= large) {
+                return image;
+            }
+        }
+        if (item instanceof ViewGroup) {
+            ViewGroup group=(ViewGroup)item;
+            for (int i=0; i<group.getChildCount(); i++) {
+                ImageView hit=findNativeIcon(group.getChildAt(i),depth+1);
+                if (hit!=null)return hit;
+            }
+        }
+        return null;
     }
 
     private void drawPath(Canvas canvas,Path path) {
