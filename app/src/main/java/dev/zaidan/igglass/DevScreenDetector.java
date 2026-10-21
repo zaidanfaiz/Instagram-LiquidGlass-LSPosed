@@ -3,6 +3,7 @@ package dev.zaidan.igglass;
 import android.app.Activity;
 import android.graphics.Rect;
 import android.view.View;
+import android.view.ViewGroup;
 import java.util.List;
 import java.util.Locale;
 
@@ -14,6 +15,7 @@ import de.robv.android.xposed.XposedHelpers;
  * Only examines fragment class names and screen geometry (no user information).
  */
 final class DevScreenDetector {
+    private static boolean fragmentErrorLogged;
     private DevScreenDetector() {}
 
     static String hiddenBecause(Activity activity, View nav) {
@@ -30,8 +32,19 @@ final class DevScreenDetector {
             String match = scan(fm, activity.getWindow().getDecorView(), 0,
                     new int[] {72});
             if (match != null) return match;
-        } catch (Throwable ignored) {
-            // Some 452 flows use proprietary navigation containers.
+        } catch (Throwable error) {
+            if (!fragmentErrorLogged) {
+                fragmentErrorLogged = true;
+                DevFileLog.note("fragment API inaccessible: "
+                        + error.getClass().getSimpleName());
+            }
+            // Instagram 452 may use a proprietary main page router.
+        }
+        View decor = activity.getWindow().getDecorView();
+        if (decor instanceof ViewGroup) {
+            String viewName = scanViewIds((ViewGroup) decor, decor, 0,
+                    new int[] {450});
+            if (viewName != null) return viewName;
         }
         return null;
     }
@@ -104,6 +117,34 @@ final class DevScreenDetector {
         return view.getGlobalVisibleRect(bounds)
                 && bounds.width() > decor.getWidth() * .50f
                 && bounds.height() > decor.getHeight() * .36f;
+    }
+
+    /** Only consider nearly full-page visible navigation containers. */
+    private static String scanViewIds(ViewGroup group, View decor,
+                                      int depth, int[] budget) {
+        if (depth > 17 || budget[0] <= 0) return null;
+        for (int i = 0; i < group.getChildCount() && budget[0] > 0; i++) {
+            View v = group.getChildAt(i);
+            budget[0]--;
+            if (v.getVisibility() != View.VISIBLE || v.getAlpha() < .10f
+                    || v.getWidth() <= 0 || v.getHeight() <= 0) continue;
+            String id = DevGlassUi.resourceName(v).toLowerCase(Locale.ROOT);
+            boolean special = id.contains("story_viewer")
+                    || id.contains("reel_viewer")
+                    || id.contains("user_profile_fragment")
+                    || id.contains("profile_fragment")
+                    || id.contains("profile_tab_content")
+                    || id.contains("user_profile_container");
+            if (special && isLargeForeground(v, decor)) {
+                return "view:" + id;
+            }
+            if (v instanceof ViewGroup) {
+                String found = scanViewIds((ViewGroup) v, decor,
+                        depth + 1, budget);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static boolean flag(Object object, String method) {
