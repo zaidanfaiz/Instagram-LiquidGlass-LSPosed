@@ -405,6 +405,7 @@ final class DevGlassUi {
                 @Override public void onSlideCancel() { scene.slideCancel(); }
             });
             main.post(() -> scene.positionLens(false));
+            DevFileLog.note("concept-a: translucent smoked surface + beveled active lens");
             main.post(() -> {
                 DevFileLog.note("pill geometry mainX=" + main.getLeft()
                         + " mainW=" + main.getWidth()
@@ -452,18 +453,18 @@ final class DevGlassUi {
 
     private static void stylePill(FrameLayout shell, Activity activity,
                                   int height, boolean dark) {
+        // The composite stack (after DevGlassBackdrop attaches its ImageView):
+        // 0 cached, darkened blur (only after idle)
+        // 1 translucent smoked glass + multiple bevel highlights
+        // 2 barely-visible specular sheen
+        // 3 small AGSL touch ripple
+        // 4 active glass lens (main only)
+        // 5 original Instagram icons (never recolored or replaced)
         shell.setClipChildren(false);
         shell.setClipToPadding(false);
         shell.setElevation(dp(shell, 11));
         shell.setClickable(false);
-
-        GradientDrawable body = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                dark ? new int[] {0xA1788796, 0x7D465567, 0x9B617384}
-                     : new int[] {0xB7AEB8C1, 0x8B899CAC, 0xAAB0BCC8});
-        body.setCornerRadius(height / 2f);
-        body.setStroke(dp(shell, 1), dark ? 0x77D8F1FF : 0xBEFFFFFF);
-        shell.setBackground(body);
+        shell.setBackground(null);
         shell.setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View view, Outline outline) {
                 outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(),
@@ -471,31 +472,27 @@ final class DevGlassUi {
             }
         });
         shell.setClipToOutline(true);
+        DevGlassSurface smoked = new DevGlassSurface(activity, false);
+        shell.addView(smoked, new FrameLayout.LayoutParams(-1, -1));
 
+        // The reflection is deliberately faint, so it never creates a
+        // solid white overlay over the real Instagram icons.
         View shine = new View(activity);
         GradientDrawable gloss = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x25FFFFFF, 0x08FFFFFF, 0x00FFFFFF});
+                new int[] {0x21FFFFFF, 0x09FFFFFF, 0x00FFFFFF});
         gloss.setCornerRadius(height / 2f);
         shine.setBackground(gloss);
         shine.setClickable(false);
         shell.addView(shine, new FrameLayout.LayoutParams(-1, -1));
+
         DevLiquidFx ripple = new DevLiquidFx(activity);
         shell.addView(ripple, new FrameLayout.LayoutParams(-1, -1));
-        DevGlassRim specular = new DevGlassRim(activity, dark);
-        shell.addView(specular, new FrameLayout.LayoutParams(-1, -1));
     }
 
     private static View createLens(Activity activity, boolean dark) {
-        View lens = new View(activity);
-        GradientDrawable halo = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                dark ? new int[] {0xB2AABDD0, 0x805E7A94, 0xA38DA5BB}
-                     : new int[] {0xC9C5CDD5, 0x906B8095, 0xB1BBC8D5});
-        halo.setCornerRadius(dp(lens, 40));
-        halo.setStroke(dp(lens, 1), dark ? 0xE6EAF7FF : 0xE5FFFFFF);
-        lens.setBackground(halo);
-        lens.setClickable(false);
+        DevGlassSurface lens = new DevGlassSurface(activity, true);
+        lens.setAlpha(.89f);
         return lens;
     }
 
