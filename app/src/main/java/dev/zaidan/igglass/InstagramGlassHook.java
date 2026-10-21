@@ -201,9 +201,14 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (scene == null) return;
             edgeSpace = DevEdgeSpaceFix.inspect(activity, parent);
             reclaimOriginalNavSpace();
-            frost = new DevGlassBackdrop(activity, scene);
-            frost.start();
-            DevFileLog.note("0.1-dev active; no repeated full-screen screenshot blur");
+            // Diagnostic optical baseline: no captured feed/video bitmap may
+            // be painted onto the shell. The r7/r8 screenshots stayed white
+            // EVEN when native tab rendering was alpha=0. This decisively
+            // isolates the high-risk cached AGSL backdrop from the clear
+            // material. Re-enable only after actual on-device clear pass.
+            frost = null;
+            DevFileLog.note("r9 CLEAR BASELINE: snapshot/SDF PixelCopy layers disabled");
+            DevFileLog.note("r9 native touch row hidden visually; independent icons active");
             sync();
         }
 
