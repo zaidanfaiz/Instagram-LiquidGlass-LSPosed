@@ -28,7 +28,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
- * v0.7 runtime diagnostic beta (floating UI unchanged from v0.6) for Instagram's 5-tab navigation.
+ * v0.8 targeted Instagram 452 navbar-space fix (beta) for its 5-tab navigation.
  *
  * It relocates the ORIGINAL navigation buttons and draws a sampled, blurred
  * approximation of content behind them. This is not the native iOS shader.
@@ -46,7 +46,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
         if (!PACKAGE.equals(load.packageName)) return;
-        XposedBridge.log("IGGlass v0.7-diag: " + load.processName);
+        XposedBridge.log("IGGlass v0.8-margin-fix: " + load.processName);
         XposedHelpers.findAndHookMethod(Activity.class, "dispatchTouchEvent", MotionEvent.class,
                 new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
@@ -168,7 +168,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // Remove the former bottom bar's *layout slot*, including small
             // non-clickable decorative wrappers. Let the feed resize normally.
             // Never remove a container holding feed, stories, or live controls.
-            collapseLegacyNavSlot(parent, host, height);
+            if (!releaseKnownNavSpace(parent, height)) {
+                collapseLegacyNavSlot(parent, host, height);
+            }
             host.bringChildToFront(shell);
             STYLED.put(nav, true);
             GlassUpdater old = SCENES.remove(activity);
@@ -178,7 +180,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             updater.start();
             host.postDelayed(() -> NavDiagnostics.dump(activity, nav, parent,
                     "after-floating"), 450);
-            XposedBridge.log("IGGlass v0.7-diag: single floating nav installed");
+            XposedBridge.log("IGGlass v0.8-margin-fix: single floating nav installed");
         } catch (Throwable e) {
             XposedBridge.log("IGGlass: overlay failed, restoring: " + e);
             try {
@@ -198,6 +200,88 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         }
     }
 
+
+    /**
+     * Verified using the Instagram 452.0.0.48.64 runtime hierarchy:
+     *   layout_container_main_wrapper (2979px high)
+     *   - layout_container_main (bottomMargin = 180px)
+     *   - swipeable_tab_view_pager (bottomMargin = 180px)
+     *   - tab_bar_shadow (1px, still visible after nav relocation)
+     *
+     * Instagram reserves the tab row's 180px by shrinking the actual feed
+     * and its pager, not by putting them in a tiny empty wrapper. Therefore
+     * collapsing parent layouts cannot work. Only reclaim this space after
+     * checking the exact parent/child resource IDs and margin values seen in
+     * the user's diagnostic log; never alter unknown layouts.
+     */
+    private static boolean releaseKnownNavSpace(ViewGroup oldParent, int navHeight) {
+        if (!"layout_container_main_wrapper".equals(resourceName(oldParent))) {
+            XposedBridge.log("IGGlass: targeted margin fix skipped: parent id mismatch");
+            return false;
+        }
+        View main = null;
+        View pager = null;
+        View shadow = null;
+        View bottomSearchBar = null;
+        for (int i = 0; i < oldParent.getChildCount(); i++) {
+            View child = oldParent.getChildAt(i);
+            String id = resourceName(child);
+            if ("layout_container_main".equals(id)) main = child;
+            else if ("swipeable_tab_view_pager".equals(id)) pager = child;
+            else if ("tab_bar_shadow".equals(id)) shadow = child;
+            else if ("layout_bottom_searchbar".equals(id)) bottomSearchBar = child;
+        }
+        if (!hasReservedBottomMargin(main, navHeight)
+                || !hasReservedBottomMargin(pager, navHeight)) {
+            XposedBridge.log("IGGlass: targeted margin fix skipped: "
+                    + "feed/pager IDs or original margins did not match");
+            return false;
+        }
+        try {
+            clearBottomMargin(main, "layout_container_main");
+            clearBottomMargin(pager, "swipeable_tab_view_pager");
+            if (hasReservedBottomMargin(bottomSearchBar, navHeight)) {
+                clearBottomMargin(bottomSearchBar, "layout_bottom_searchbar");
+            }
+            if (shadow != null && shadow.getHeight() <= dp(shadow, 3)) {
+                shadow.setVisibility(View.GONE);
+                XposedBridge.log("IGGlass: hidden obsolete tab_bar_shadow");
+            }
+            oldParent.requestLayout();
+            XposedBridge.log("IGGlass: released " + navHeight
+                    + "px reserved bottom space for feed and pager");
+            return true;
+        } catch (Throwable e) {
+            XposedBridge.log("IGGlass: targeted margin fix failed: " + e);
+            return false;
+        }
+    }
+
+    private static boolean hasReservedBottomMargin(View view, int expected) {
+        if (view == null) return false;
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        return params instanceof FrameLayout.LayoutParams
+                && ((FrameLayout.LayoutParams) params).bottomMargin == expected;
+    }
+
+    private static void clearBottomMargin(View view, String name) {
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) view.getLayoutParams();
+        int previous = params.bottomMargin;
+        params.bottomMargin = 0;
+        view.setLayoutParams(params);
+        XposedBridge.log("IGGlass: " + name
+                + " bottomMargin " + previous + " -> 0");
+    }
+
+    private static String resourceName(View view) {
+        if (view == null || view.getId() == View.NO_ID) return "";
+        try {
+            return view.getResources().getResourceEntryName(view.getId());
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
 
     /**
      * The old Instagram bottom-navigation *slot* is not the glass overlay:
