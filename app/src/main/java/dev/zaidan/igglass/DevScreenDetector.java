@@ -101,13 +101,15 @@ final class DevScreenDetector {
         // Exact "Edit profil" and "Bagikan profil" distinguish the user's
         // own page from someone else's, even when the avatar/grid is shared.
         if (ownCount >= 2) return Page.OWN_PROFILE;
+        // A live conversation input is more specific than old inbox tabs
+        // that Instagram may keep attached beneath a new chat screen.
+        if (s.dmComposer > 0 && (s.dmThreadHeader > 0 || inboxCount < 3))
+            return Page.DM_CONVERSATION;
         // Instagram's inbox selection screen has "Utama" + "Permintaan".
-        // Neither an open chat nor a feed uses this combination.
+        // A conversation without an input is not considered confirmed.
         if ((s.inbox[0] > 0 && s.inbox[1] > 0)
                 || (inboxCount >= 3 && s.dmComposer == 0))
             return Page.DIRECT_INBOX;
-        if (s.dmComposer > 0 && (s.dmThreadHeader > 0 || inboxCount < 2))
-            return Page.DM_CONVERSATION;
         if (s.profileStats >= 2 &&
                 (s.followButton || s.profileStructure >= 2))
             return Page.OTHER_PROFILE;
