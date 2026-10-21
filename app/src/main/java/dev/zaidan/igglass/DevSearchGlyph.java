@@ -24,8 +24,8 @@ final class DevSearchGlyph extends View {
         outline.setStyle(Paint.Style.STROKE);
         outline.setStrokeCap(Paint.Cap.ROUND);
         outline.setStrokeJoin(Paint.Join.ROUND);
-        outline.setColor(0xC1111B24);
-        outline.setStrokeWidth(getResources().getDisplayMetrics().density * 5.2f);
+        outline.setColor(0x22111B24);
+        outline.setStrokeWidth(getResources().getDisplayMetrics().density * 2.95f);
         setClickable(false);
         setFocusable(false);
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
