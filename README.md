@@ -2,6 +2,29 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Latest test build: **0.1-dev-r11 — compact native icons**
+
+The user's r10 device screenshot confirms that **both capsules now remain
+transparent**, with a subtle white glass rim and draggable selected lens.
+However, the icon artwork is much too large.
+
+This is a surgical adjustment **only to visual artwork dimensions**:
+- The original Instagram ImageView drawable was previously rendered at
+  `side = 1.42 × visualRadius`, yielding an approximately **46dp-wide** image.
+  r11 now renders it at `side = 0.86 × 12.8dp`, or about **22dp across**.
+- Hand-drawn fallback icons and the actual profile picture are also
+  scaled down proportionally, instead of the previously exaggerated outlines.
+- The separately floating Search magnifier is reduced from `20.5%` to
+  `15.5%` of the circular touch target's width for a balanced appearance.
+- Native tab hitboxes, native clicks, swipe-to-select, page visibility,
+  and **r10 rim-only fully transparent material** are preserved without
+  restoring any cached bitmap, AGSL backdrop, color fill or blur.
+- The `Download/IGGlass-0.1-dev-*.txt` diagnostics remain enabled.
+
+Test Home, Reels, DM inbox, own profile, and separate Search: icons should
+look much closer to Instagram's native sizes without sacrificing the clear
+pill or interaction. Device rendering has not yet been verified.
+
 ## Current diagnostic build: **0.1-dev-r10 — rim-only optical isolation**
 
 The r9 phone screenshots and `IGGlass-0.1-dev-20261021-204619.txt`
