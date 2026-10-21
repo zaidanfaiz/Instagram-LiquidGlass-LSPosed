@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for helping test this beta. **Do not paste account credentials, message contents or unredacted screenshots/logs.**
-        The primary supported target is Instagram 452.0.0.48.64 on Android 16.
+        Development tests used Android 16 (API 36) and Instagram 452.0.0.48.64. Other versions may work. Please give your own device and app versions.
   - type: input
     id: module
     attributes:
