@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.graphics.Rect;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import java.util.List;
 import java.util.Locale;
 
@@ -163,12 +164,14 @@ final class DevScreenDetector {
      * an embedded recommendation tile also mentions "profile".
      */
     private static String screenSignature(ViewGroup decor) {
-        int[] found = new int[5]; // profile header, profile grid, edit, DM, inbox
+        int[] found = new int[12]; // 5 resource markers + fixed Instagram UI label signatures
         StringBuilder report = new StringBuilder();
         collectSignature(decor, 0, new int[] {1250}, found, report);
         boolean profile = (found[0] > 0 && (found[1] > 0 || found[2] > 0))
-                || (found[1] > 0 && found[2] > 0);
-        boolean inbox = found[3] > 0 && found[4] > 0;
+                || (found[1] > 0 && found[2] > 0)
+                || ((found[5] + found[6] + found[7]) >= 2);
+        boolean inbox = (found[3] > 0 && found[4] > 0)
+                || ((found[8] + found[9] + found[10] + found[11]) >= 2);
         if (inbox) {
             DevFileLog.note("screen signature direct inbox: " + report);
             return "native-direct-inbox";
@@ -206,6 +209,24 @@ final class DevScreenDetector {
                     || key.contains("direct_inbox_header")
                     || key.contains("direct_inbox_list")
                     || key.contains("message_inbox")) category = 4;
+            // Only compare against fixed, public Instagram UI labels; never
+            // store message text, handles or profile descriptions in logs.
+            // Require markers near the header to avoid feed caption matches.
+            if (child instanceof TextView) {
+                String label = ((TextView) child).getText().toString()
+                        .trim().toLowerCase(Locale.ROOT);
+                int[] loc = new int[2];
+                child.getLocationOnScreen(loc);
+                if (loc[1] >= 0 && loc[1] < group.getRootView().getHeight() * .60f) {
+                    if ("edit profil".equals(label)) found[5]++;
+                    else if ("bagikan profil".equals(label)) found[6]++;
+                    else if ("dasbor anda".equals(label)) found[7]++;
+                    else if ("filter".equals(label)) found[8]++;
+                    else if ("utama".equals(label)) found[9]++;
+                    else if ("permintaan".equals(label)) found[10]++;
+                    else if (label.contains("cari atau tanya meta ai")) found[11]++;
+                }
+            }
             if (category >= 0) {
                 found[category]++;
                 if (report.length() < 170) {
