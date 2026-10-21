@@ -144,6 +144,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
         void onPause() {
             resumed = false;
+            if (frost != null) frost.setEnabled(false);
             if (scene != null) scene.show(false);
             // Do NOT restore the 60px root margin here. Opening a modal
             // comment sheet, another Window or an input UI can briefly pause
@@ -156,7 +157,11 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         void onTouch(MotionEvent ev) {
             if (!resumed || scene == null || !scene.attached()) return;
             scene.onTouch(ev);
-            if (frost != null) frost.request(680);
+            if (frost != null) {
+                frost.setEnabled(!scene.isReelsActive()
+                        && scene.mainPill.getVisibility()==View.VISIBLE);
+                frost.request(1000);
+            }
             decor.postDelayed(this::sync, 240);
         }
 
@@ -214,9 +219,12 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // EVEN when native tab rendering was alpha=0. This decisively
             // isolates the high-risk cached AGSL backdrop from the clear
             // material. Re-enable only after actual on-device clear pass.
-            frost = null;
-            DevFileLog.note("r9 CLEAR BASELINE: snapshot/SDF PixelCopy layers disabled");
-            DevFileLog.note("r9 native touch row hidden visually; independent icons active");
+            // SAFE non-video frosting only: 16%-opacity cached bitmap,
+            // never PixelCopy from Reels, never draw if a Surface/TextureView
+            // overlaps the glass. Automatically suspend on modal comments.
+            frost = new DevGlassBackdrop(activity, scene);
+            frost.start();
+            DevFileLog.note("r12: non-video GPU frosted alpha=16%; Reels kept rim-only");
             sync();
         }
 
@@ -226,11 +234,15 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             String state = reason == null ? "visible" : "hidden:" + reason;
             boolean show = reason == null;
             scene.show(show);
+            // The blur never samples Reels nor any overlaid comment modal.
+            if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
             // Neither setActive(show) nor margin reclamation may run in
             // periodic sync: it forces repeated setLayoutParams() on the
             // live video coordinator, which can freeze SurfaceView pictures
             // after dismissing the comments sheet. Installer owns insets.
             if (show) scene.syncSelection();
+            // A new native selection can change to Reels during syncSelection.
+            if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
             if (!state.equals(lastReason)) {
                 if (show && frost != null) frost.request(550);
                 lastReason = state;
