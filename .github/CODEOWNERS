@@ -1,0 +1,3 @@
+# Review ownership for every file. Enable GitHub ruleset / branch protection
+# with 'Require review from Code Owners' to enforce before merging to main.
+* @zaidanfaiz
