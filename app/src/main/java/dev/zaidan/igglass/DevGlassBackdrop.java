@@ -27,6 +27,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
     private final FrameLayout host;
     private final DevRefractiveBackdrop mainImage;
     private final DevRefractiveBackdrop searchImage;
+    private final DevVideoBackdrop videoCapture;
     private final Runnable refresh = this::capture;
     private boolean stopped;
     private boolean slowDevice;
@@ -40,6 +41,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         this.mainImage = imageFor(activity, scene.mainPill, scene.dark);
         this.searchImage = scene.searchPill == null ? null :
                 imageFor(activity, scene.searchPill, scene.dark);
+        this.videoCapture = new DevVideoBackdrop(scene,mainImage,searchImage);
     }
 
     private static DevRefractiveBackdrop imageFor(Activity activity,
@@ -64,6 +66,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
         if (stopped || slowDevice || !started) return;
         if (scene.isReelsActive()) {
             host.removeCallbacks(refresh);
+            videoCapture.request(delayMs);
             return;
         }
         host.removeCallbacks(refresh);
@@ -187,6 +190,7 @@ final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener
     void stop() {
         if (stopped) return;
         stopped = true;
+        videoCapture.stop();
         host.removeCallbacks(refresh);
         ViewTreeObserver observer = host.getViewTreeObserver();
         if (observer.isAlive()) observer.removeOnScrollChangedListener(this);
