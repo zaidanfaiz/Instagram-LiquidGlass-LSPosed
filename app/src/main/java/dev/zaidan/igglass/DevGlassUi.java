@@ -39,6 +39,8 @@ final class DevGlassUi {
         final ViewGroup.LayoutParams originalSearchParams;
         final int originalSearchIndex;
         final View lens;
+        final DevLiquidFx mainFx;
+        final DevLiquidFx searchFx;
         final int barHeight;
         final boolean dark;
         private int activeIndex = 0;
@@ -61,6 +63,8 @@ final class DevGlassUi {
             this.originalSearchParams = originalSearchParams;
             this.originalSearchIndex = originalSearchIndex;
             this.lens = lens;
+            this.mainFx = effectInside(mainPill);
+            this.searchFx = effectInside(searchPill);
             this.barHeight = barHeight;
             this.dark = dark;
         }
@@ -87,6 +91,7 @@ final class DevGlassUi {
             final float rawX = ev.getRawX();
             final float rawY = ev.getRawY();
             if (searchPill != null && inside(searchPill, rawX, rawY)) {
+                if (searchFx != null) pulse(searchFx, searchPill, rawX, rawY);
                 selectSearch();
                 DevFileLog.note("touch native SEARCH control");
                 return;
@@ -98,11 +103,28 @@ final class DevGlassUi {
             for (int i = 0; i < nav.getChildCount(); i++) {
                 View child = nav.getChildAt(i);
                 if (x >= child.getLeft() && x <= child.getRight()) {
+                    if (mainFx != null) pulse(mainFx, mainPill, rawX, rawY);
                     selectMain(i, true);
                     DevFileLog.note("touch native main tab index=" + i);
                     break;
                 }
             }
+        }
+
+        private static void pulse(DevLiquidFx effect, View parent,
+                                  float rawX, float rawY) {
+            int[] xy = new int[2];
+            parent.getLocationOnScreen(xy);
+            effect.pulse(rawX - xy[0], rawY - xy[1]);
+        }
+
+        private static DevLiquidFx effectInside(FrameLayout shell) {
+            if (shell == null) return null;
+            for (int i = 0; i < shell.getChildCount(); i++) {
+                View child = shell.getChildAt(i);
+                if (child instanceof DevLiquidFx) return (DevLiquidFx) child;
+            }
+            return null;
         }
 
         private static boolean inside(View v, float rawX, float rawY) {
@@ -343,6 +365,8 @@ final class DevGlassUi {
         shine.setBackground(gloss);
         shine.setClickable(false);
         shell.addView(shine, new FrameLayout.LayoutParams(-1, -1));
+        DevLiquidFx ripple = new DevLiquidFx(activity);
+        shell.addView(ripple, new FrameLayout.LayoutParams(-1, -1));
         return shell;
     }
 
