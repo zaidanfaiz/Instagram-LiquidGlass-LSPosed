@@ -2,6 +2,59 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current test: **0.1-dev-r9 — true-clear baseline + real native icon drawables**
+
+After the r8 phone screenshot showed **the pill still filling white after a DM /
+Profile tab transition**, despite `nav.setAlpha(0f)`, the hypothesis that
+the sole cause was Instagram's native tab rendering was disproved.
+
+### Exact isolation applied
+
+- Temporarily **DISABLE the entire cached `DevGlassBackdrop` capture and
+  `DevRefractiveBackdrop` AGSL image layer** at module install time. None
+  of the frosted/refractive screenshot surfaces are inserted into either
+  pill in this diagnostic build. This is deliberate so we can verify that
+  changing tabs can no longer make a white rectangle.
+- The **main shell has no body fill at all**. Only the thin glass rim is
+  painted. The moving selected lens has a very low-alpha translucent
+  wash (not white); its specular glint remains.
+- Remove the whole-pill permanent white gradient and idle AGSL ripple.
+  The touch ripple briefly appears **only while touched**, then fades.
+- Maintain the original Instagram View hierarchy as **touch-only with
+  alpha=0**, preserving native taps and sliding navigation. The native
+  alpha is restored if the module tears down the injected scene.
+- Restore **native Instagram icon assets where possible**: the independent
+  `DevNavGlyphs` layer now attempts to reuse `ImageView.getDrawable()`
+  from each actual Instagram tab, rather than always drawing the enlarged
+  custom outline from r8. Non-ImageView icons receive smaller,
+  better-proportioned fallback paths. The original profile avatar is still
+  attempted before a generic profile glyph.
+- Keep r7's verified Home / Reels / DM-inbox / own-profile page routing and
+  hide on opened conversations, other profiles and Story.
+
+**The tradeoff:** This is a **transparency control build**. It demonstrates
+whether the white slab came from snapshot/shader rendering, but it cannot
+produce accurate real-time iOS content refraction while the sampling layer
+is disabled. It still has specular glass edges and a draggable active lens.
+Once actual on-device screenshots confirm the shell is clear on BOTH
+bright feed and dark Reels after several tab changes, a correctly clipped,
+low-alpha and self-resetting glass refraction can be restored without
+reintroducing opaque captures. Do not claim this is already equal to
+the supplied Dribbble Liquid Glass concept.
+
+### r9 testing (important)
+
+1. Install the latest r9 debug APK and force-stop Instagram.
+2. Open Home and Reels. Slide to Direct inbox, own profile, then back to
+   Home, repeatedly. Confirm **no white capsule persists**.
+3. Check that original icon assets (where available) show instead of r8's
+   comically thick double outlines, and every native tap works.
+4. Confirm own profile and inbox stay visible, but other's profile and
+   opened DM chat hide both pills.
+5. Send screenshots + the newest `Download/IGGlass-0.1-dev-*.txt`.
+   This build writes `r9 CLEAR BASELINE` when installed and has no
+   `SDF optics` or `frost:` lines during normal navigation.
+
 ## Current beta: **0.1-dev-r8 — optically transparent native layer isolation**
 
 Follow-up to r7's real device screenshots and log from 2026-10-21.
