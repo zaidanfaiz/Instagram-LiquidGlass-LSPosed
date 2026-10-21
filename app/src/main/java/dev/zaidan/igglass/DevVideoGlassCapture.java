@@ -91,10 +91,15 @@ final class DevVideoGlassCapture {
                 && scene.mainPill.getVisibility()==View.VISIBLE
                 && scene.isReelsActive() && activity.hasWindowFocus()
                 && !activity.isFinishing() && !activity.isDestroyed();
+        if(!allow && !enabled) {
+            // Retry is permitted after leaving Reels and returning later.
+            disabledThisReels=false;
+            return;
+        }
         if(allow==enabled)return;
+        if(allow && disabledThisReels) return;
         generation++;
         if(!allow) disabledThisReels=false;
-        if(allow && disabledThisReels) return;
         enabled=allow;
         mainHandler.removeCallbacks(tick);
         if(!enabled) {
