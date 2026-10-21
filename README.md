@@ -12,7 +12,7 @@ An independent LSPosed module — no modified Instagram APK required.
 ![LSPosed](https://img.shields.io/badge/Framework-LSPosed-5865F2)
 ![License](https://img.shields.io/badge/license-source--available-64748B)
 
-**[Download](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/latest) · [Installation](#installation) · [Compatibility](#compatibility) · [Report a bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)**
+**[Download](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1) · [Installation](#installation) · [Compatibility](#compatibility) · [Report a bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)**
 
 **English** · [Bahasa Indonesia](README_ID.md)
 
