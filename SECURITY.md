@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest GitHub beta release targeting **Instagram 452.0.0.48.64 on Android 16** receives best-effort maintenance. This is an experimental LSPosed module, not a security product or an officially supported Instagram client.
+Best-effort maintenance is provided for this experimental LSPosed module. The developer has tested **Android 16 (API 36) with Instagram 452.0.0.48.64**, but the module is **not intentionally restricted to that combination**. Other Android/Instagram versions may work; security and compatibility behavior must be checked independently. This is not a security product or an officially supported Instagram client.
 
 ## Reporting a vulnerability
 
