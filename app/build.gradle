@@ -6,8 +6,8 @@ android {
         applicationId 'dev.zaidan.igglass'
         minSdk 29
         targetSdk 28
-        versionCode 13
-        versionName '0.1-dev-r4-refractive-glass'
+        versionCode 14
+        versionName '0.1-dev-r5-glass-material-fix'
     }
 }
 dependencies {
