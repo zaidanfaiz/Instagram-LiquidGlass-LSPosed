@@ -3,196 +3,271 @@ package dev.zaidan.igglass;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Rect;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
+import android.os.Build;
 import android.os.SystemClock;
+import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 
 /**
- * Optional, rate-limited frosted snapshot of the content behind BOTH pills.
+ * Optional SOFT blur, safely isolated from any video SurfaceView / TextureView.
  *
- * Unlike old v0.9 this captures the small union strip ONCE (not twice) and
- * only after interaction/scroll has settled. At most one capture per 1200ms;
- * there is no Choreographer frame callback and no 12fps full-content capture.
- * A slow draw disables future captures. AGSL highlights remain independent.
+ * A low-alpha frosted sample is captured ONLY while the main FEED is idle and
+ * no video surface intersects the glass. Reels, opened comments, modals and
+ * any background while not focused get ZERO bitmap drawing.
+ *
+ * This is a limited Android backdrop approximation, not iOS compositor blur.
  */
 final class DevGlassBackdrop implements ViewTreeObserver.OnScrollChangedListener {
-    private static final float SCALE = .22f;
-    private static final long MIN_CAPTURE_MS = 1200L;
-    private static final long TOO_SLOW_MS = 38L;
-
+    private static final float SCALE = .23f;
+    private static final long MIN_CAPTURE_MS = 1800L;
+    private static final long TOO_SLOW_MS = 28L;
     private final Activity activity;
     private final DevGlassUi.Scene scene;
     private final FrameLayout host;
-    private final DevRefractiveBackdrop mainImage;
-    private final DevRefractiveBackdrop searchImage;
-    private final DevVideoBackdrop videoCapture;
-    private final Runnable refresh = this::capture;
+    private final ImageView main;
+    private final ImageView search;
+    private final Runnable captureTask = this::capture;
     private boolean stopped;
-    private boolean slowDevice;
-    private long lastCaptureAt;
     private boolean started;
+    private boolean enabled;
+    private boolean tooSlow;
+    private boolean skipVideoLogged;
+    private long lastCaptureAt;
 
     DevGlassBackdrop(Activity activity, DevGlassUi.Scene scene) {
         this.activity = activity;
         this.scene = scene;
         this.host = scene.host;
-        this.mainImage = imageFor(activity, scene.mainPill, scene.dark);
-        this.searchImage = scene.searchPill == null ? null :
-                imageFor(activity, scene.searchPill, scene.dark);
-        this.videoCapture = new DevVideoBackdrop(scene,mainImage,searchImage);
+        this.main = addFrostLayer(activity,scene.mainPill);
+        this.search = scene.searchPill == null ? null
+                : addFrostLayer(activity,scene.searchPill);
     }
 
-    private static DevRefractiveBackdrop imageFor(Activity activity,
-                                                   FrameLayout shell,
-                                                   boolean dark) {
-        DevRefractiveBackdrop image = new DevRefractiveBackdrop(activity, dark);
-        // The image stays behind the semi-translucent material, specular rim,
-        // moving selection lens and original Instagram buttons.
-        shell.addView(image, 0, new FrameLayout.LayoutParams(-1, -1));
-        return image;
+    private static ImageView addFrostLayer(Activity activity,FrameLayout shell) {
+        ImageView v = new ImageView(activity);
+        v.setBackground(null);
+        v.setClickable(false);
+        v.setFocusable(false);
+        v.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        v.setScaleType(ImageView.ScaleType.FIT_XY);
+        v.setAlpha(.16f); // 84% of original pixels ALWAYS remain unmodified.
+        if(Build.VERSION.SDK_INT >= 31) {
+            float blur = 6f*activity.getResources().getDisplayMetrics().density;
+            v.setRenderEffect(RenderEffect.createBlurEffect(
+                    blur, blur, Shader.TileMode.CLAMP));
+        }
+        // Behind the beveled glass rim, active lens and clickable IG tab row.
+        shell.addView(v, 0, new FrameLayout.LayoutParams(-1,-1));
+        return v;
     }
 
     void start() {
-        if (started || stopped) return;
-        started = true;
-        ViewTreeObserver observer = host.getViewTreeObserver();
-        if (observer.isAlive()) observer.addOnScrollChangedListener(this);
-        request(700);
+        if(stopped || started) return;
+        started=true;
+        ViewTreeObserver obs=host.getViewTreeObserver();
+        if(obs.isAlive()) obs.addOnScrollChangedListener(this);
+        DevFileLog.note("r12 safe-frost: home-only alpha=16%, no Reels PixelCopy");
+    }
+
+    void setEnabled(boolean shouldEnable) {
+        boolean allow = !stopped && started && shouldEnable
+                && scene.attached() && !scene.isReelsActive()
+                && activity.hasWindowFocus();
+        if(enabled == allow) return;
+        enabled=allow;
+        host.removeCallbacks(captureTask);
+        if(!enabled) {
+            clear(main);
+            clear(search);
+        } else request(900);
+        DevFileLog.note("r12 safe-frost " + (enabled ? "enabled" : "suspended"));
+    }
+
+    private static void clear(ImageView v) {
+        if(v == null) return;
+        android.graphics.drawable.Drawable old=v.getDrawable();
+        v.setImageDrawable(null);
+        if(old instanceof android.graphics.drawable.BitmapDrawable) {
+            Bitmap bmp=((android.graphics.drawable.BitmapDrawable)old).getBitmap();
+            if(bmp!=null && !bmp.isRecycled())
+                v.postDelayed(() -> { if(!bmp.isRecycled()) bmp.recycle(); },1800);
+        }
     }
 
     void request(int delayMs) {
-        if (stopped || slowDevice || !started) return;
-        if (scene.isReelsActive()) {
-            host.removeCallbacks(refresh);
-            videoCapture.request(delayMs);
-            return;
-        }
-        host.removeCallbacks(refresh);
-        host.postDelayed(refresh, delayMs);
+        if(!enabled || stopped || tooSlow || scene.isReelsActive()) return;
+        host.removeCallbacks(captureTask);
+        host.postDelayed(captureTask,Math.max(850,delayMs));
     }
 
     @Override public void onScrollChanged() {
-        request(780);
+        request(1100);
     }
 
     private void capture() {
-        if (stopped || slowDevice || !scene.attached()
-                || scene.isReelsActive()
-                || scene.mainPill.getVisibility() != View.VISIBLE
-                || activity.isFinishing() || activity.isDestroyed()
-                || !activity.hasWindowFocus()) return;
-
-        long now = SystemClock.uptimeMillis();
-        if (now - lastCaptureAt < MIN_CAPTURE_MS) {
-            request((int) (MIN_CAPTURE_MS - (now - lastCaptureAt) + 100));
+        if(!enabled || stopped || tooSlow || scene.isReelsActive()
+                || scene.mainPill.getVisibility()!=View.VISIBLE
+                || !activity.hasWindowFocus() || activity.isDestroyed()
+                || activity.isFinishing()) return;
+        long now=SystemClock.uptimeMillis();
+        if(now-lastCaptureAt < MIN_CAPTURE_MS) {
+            request((int)(MIN_CAPTURE_MS-(now-lastCaptureAt)+100));
             return;
         }
-        lastCaptureAt = now;
+        lastCaptureAt=now;
 
-        int[] hostXY = new int[2];
-        int[] mainXY = new int[2];
+        int[] hostXY=new int[2];
         host.getLocationOnScreen(hostXY);
-        scene.mainPill.getLocationOnScreen(mainXY);
+        Rect mainR=relativeRect(scene.mainPill,hostXY);
+        Rect searchR=scene.searchPill==null ? null
+                : relativeRect(scene.searchPill,hostXY);
+        Rect bounds=new Rect(mainR);
+        if(searchR!=null)bounds.union(searchR);
+        if(bounds.width()<25 || bounds.height()<25
+                || bounds.width()>host.getWidth() || bounds.height()>host.getHeight()) return;
 
-        int mainX = mainXY[0] - hostXY[0];
-        int mainY = mainXY[1] - hostXY[1];
-        int mainW = scene.mainPill.getWidth();
-        int mainH = scene.mainPill.getHeight();
-        if (mainW < 20 || mainH < 20) return;
-        int sx = mainX, sy = mainY, ex = mainX + mainW, ey = mainY + mainH;
-        int searchX = 0, searchY = 0, searchW = 0, searchH = 0;
-        if (scene.searchPill != null) {
-            int[] searchXY = new int[2];
-            scene.searchPill.getLocationOnScreen(searchXY);
-            searchX = searchXY[0] - hostXY[0];
-            searchY = searchXY[1] - hostXY[1];
-            searchW = scene.searchPill.getWidth();
-            searchH = scene.searchPill.getHeight();
-            sx = Math.min(sx, searchX);
-            sy = Math.min(sy, searchY);
-            ex = Math.max(ex, searchX + searchW);
-            ey = Math.max(ey, searchY + searchH);
-        }
-        int w = ex - sx, h = ey - sy;
-        if (w < 20 || h < 20 || w > host.getWidth() || h > host.getHeight()) {
+        // HARD SAFETY GATE: never call View.draw on a hierarchy containing
+        // a live video surface under the sampling strip, preventing playback
+        // freezes caused by video layers being sampled or re-laid out.
+        if(hasVideoSurface(host,bounds,hostXY,0,new int[]{1400})) {
+            if(!skipVideoLogged) {
+                DevFileLog.note("r12 safe-frost: live video detected, clear material kept");
+                skipVideoLogged=true;
+            }
+            clear(main);
+            clear(search);
             return;
         }
-
-        long began = SystemClock.uptimeMillis();
-        Bitmap combined = null;
+        skipVideoLogged=false;
+        Bitmap combined=null;
+        long began=SystemClock.uptimeMillis();
         try {
-            combined = Bitmap.createBitmap(
-                    Math.max(1, Math.round(w * SCALE)),
-                    Math.max(1, Math.round(h * SCALE)), Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(combined);
-            // Bitmap starts fully transparent. NEVER put opaque fake dark/white
-            // fallback pixels under a glass shader (especially on Reels).
-            canvas.scale(SCALE, SCALE);
-            canvas.translate(-sx, -sy);
-            canvas.clipRect(sx, sy, ex, ey);
-
-            if (host.getBackground() != null) host.getBackground().draw(canvas);
-            for (int i = 0; i < host.getChildCount(); i++) {
-                View child = host.getChildAt(i);
-                if (child == scene.mainPill || child == scene.searchPill
-                        || child.getVisibility() != View.VISIBLE) continue;
-                int checkpoint = canvas.save();
-                canvas.translate(child.getLeft() - host.getScrollX(),
-                        child.getTop() - host.getScrollY());
-                canvas.concat(child.getMatrix());
-                child.draw(canvas);
-                canvas.restoreToCount(checkpoint);
+            combined=Bitmap.createBitmap(
+                    Math.max(1,Math.round(bounds.width()*SCALE)),
+                    Math.max(1,Math.round(bounds.height()*SCALE)),
+                    Bitmap.Config.ARGB_8888);
+            Canvas c=new Canvas(combined);
+            c.scale(SCALE,SCALE);
+            c.translate(-bounds.left,-bounds.top);
+            c.clipRect(bounds);
+            for(int i=0;i<host.getChildCount();i++) {
+                View child=host.getChildAt(i);
+                if(child==scene.mainPill || child==scene.searchPill
+                        || child.getVisibility()!=View.VISIBLE)continue;
+                int checkpoint=c.save();
+                c.translate(child.getLeft()-host.getScrollX(),
+                        child.getTop()-host.getScrollY());
+                c.concat(child.getMatrix());
+                child.draw(c);
+                c.restoreToCount(checkpoint);
             }
-            Bitmap main = section(combined, mainX - sx, mainY - sy, mainW, mainH);
-            if (main != null) mainImage.setSnapshot(main);
-            if (searchImage != null) {
-                Bitmap search = section(combined, searchX - sx,
-                        searchY - sy, searchW, searchH);
-                if (search != null) searchImage.setSnapshot(search);
+            long took=SystemClock.uptimeMillis()-began;
+            if(took>TOO_SLOW_MS) {
+                tooSlow=true;
+                clear(main);
+                clear(search);
+                DevFileLog.note("r12 safe-frost: disabled after slow draw " + took+"ms");
+                return;
             }
-            long duration = SystemClock.uptimeMillis() - began;
-            if (duration > TOO_SLOW_MS) {
-                slowDevice = true;
-                DevFileLog.note("frost: capture took " + duration
-                        + "ms; further captures disabled to prevent lag");
-            } else {
-                DevFileLog.note("frost: single combined strip captured in "
-                        + duration + "ms; cache active");
+            if(!isUsable(combined)) {
+                clear(main);
+                clear(search);
+                return;
             }
-        } catch (Throwable e) {
-            slowDevice = true;
-            DevFileLog.note("frost: capture disabled "
-                    + e.getClass().getSimpleName());
-        } finally {
-            if (combined != null && !combined.isRecycled()) combined.recycle();
+            Bitmap x=crop(combined,mainR,bounds);
+            if(x!=null)replace(main,x);
+            if(search!=null && searchR!=null) {
+                Bitmap y=crop(combined,searchR,bounds);
+                if(y!=null)replace(search,y);
+            }
+            DevFileLog.note("r12 safe-frost sample=" + combined.getWidth()
+                    +"x"+combined.getHeight()+" took="+took+"ms");
+        }catch(Throwable error) {
+            tooSlow=true;
+            clear(main);clear(search);
+            DevFileLog.note("r12 safe-frost disabled: "
+                    +error.getClass().getSimpleName());
+        }finally {
+            if(combined!=null&&!combined.isRecycled())combined.recycle();
         }
     }
 
-    private static Bitmap section(Bitmap original, int left, int top,
-                                   int width, int height) {
-        int l = Math.max(0, Math.round(left * SCALE));
-        int t = Math.max(0, Math.round(top * SCALE));
-        if (l >= original.getWidth() || t >= original.getHeight()) return null;
-        int rw = Math.min(Math.max(1, Math.round(width * SCALE)),
-                original.getWidth() - l);
-        int rh = Math.min(Math.max(1, Math.round(height * SCALE)),
-                original.getHeight() - t);
-        if (rw <= 0 || rh <= 0) return null;
-        Bitmap cropped = Bitmap.createBitmap(original, l, t, rw, rh);
-        // Full-size crops may be returned as the original bitmap itself.
-        // The shared strip is recycled after both crops are installed.
-        return cropped == original
-                ? original.copy(Bitmap.Config.ARGB_8888, false) : cropped;
+    private static boolean isUsable(Bitmap bmp) {
+        int w=bmp.getWidth(),h=bmp.getHeight();
+        if(w<2||h<2)return false;
+        double n=0,sum=0,squares=0;
+        for(int y=0;y<h;y+=Math.max(1,h/7)) {
+            for(int x=0;x<w;x+=Math.max(1,w/15)) {
+                int c=bmp.getPixel(x,y);
+                if(Color.alpha(c)<220)return false;
+                double v=(.213*Color.red(c)+.715*Color.green(c)
+                        +.072*Color.blue(c))/255.;
+                sum+=v;squares+=v*v;n++;
+            }
+        }
+        double avg=sum/n,dev=Math.sqrt(Math.max(0,squares/n-avg*avg));
+        return dev>.07 && avg<.90 && avg>.07;
+    }
+
+    private static void replace(ImageView v, Bitmap b) {
+        android.graphics.drawable.Drawable previous=v.getDrawable();
+        v.setImageBitmap(b);
+        if(previous instanceof android.graphics.drawable.BitmapDrawable) {
+            Bitmap old=((android.graphics.drawable.BitmapDrawable)previous).getBitmap();
+            if(old!=null&&old!=b&&!old.isRecycled())
+                v.postDelayed(() -> { if(!old.isRecycled())old.recycle(); },1800);
+        }
+    }
+
+    private static Bitmap crop(Bitmap original,Rect item,Rect all) {
+        int x=Math.max(0,Math.round((item.left-all.left)*SCALE));
+        int y=Math.max(0,Math.round((item.top-all.top)*SCALE));
+        if(x>=original.getWidth()||y>=original.getHeight())return null;
+        int w=Math.min(original.getWidth()-x,Math.max(1,Math.round(item.width()*SCALE)));
+        int h=Math.min(original.getHeight()-y,Math.max(1,Math.round(item.height()*SCALE)));
+        Bitmap part=Bitmap.createBitmap(original,x,y,w,h);
+        return part==original ? original.copy(Bitmap.Config.ARGB_8888,false):part;
+    }
+
+    private static Rect relativeRect(View v,int[] hostXY) {
+        int[] position=new int[2]; v.getLocationOnScreen(position);
+        int x=position[0]-hostXY[0],y=position[1]-hostXY[1];
+        return new Rect(x,y,x+v.getWidth(),y+v.getHeight());
+    }
+
+    private static boolean hasVideoSurface(View v, Rect target,int[] hostXY,
+                                           int depth,int[] budget) {
+        if(budget[0]--<=0||depth>19||v.getVisibility()!=View.VISIBLE)return false;
+        if(v instanceof SurfaceView||v instanceof TextureView) {
+            Rect rect=relativeRect(v,hostXY);
+            return Rect.intersects(rect,target);
+        }
+        if(v instanceof ViewGroup) {
+            ViewGroup g=(ViewGroup)v;
+            for(int i=0;i<g.getChildCount()&&budget[0]>0;i++) {
+                if(hasVideoSurface(g.getChildAt(i),target,hostXY,
+                        depth+1,budget))return true;
+            }
+        }
+        return false;
     }
 
     void stop() {
-        if (stopped) return;
-        stopped = true;
-        videoCapture.stop();
-        host.removeCallbacks(refresh);
-        ViewTreeObserver observer = host.getViewTreeObserver();
-        if (observer.isAlive()) observer.removeOnScrollChangedListener(this);
+        if(stopped)return;
+        setEnabled(false);
+        stopped=true;
+        host.removeCallbacks(captureTask);
+        ViewTreeObserver obs=host.getViewTreeObserver();
+        if(obs.isAlive())obs.removeOnScrollChangedListener(this);
+        clear(main);clear(search);
     }
 }
