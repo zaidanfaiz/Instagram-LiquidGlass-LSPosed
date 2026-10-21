@@ -90,8 +90,16 @@ final class DevOrderedPageSwipe {
                 final int from=startingPage;
                 final int direction=dx<0 ? 1 : -1;
                 final int desired=neighbor(from,direction);
-                if (desired<0) return;
                 final int token=++generation;
+                // At the requested END of the five-page cycle, IG's native
+                // order has Search BEFORE Profile. A left swipe from Search
+                // would incorrectly advance to Profile. Undo only if the
+                // real native page actually changed (never touch carousel).
+                if (desired<0) {
+                    if (from==3 && direction==1)
+                        decor.postDelayed(() -> restoreSearchEnd(token),510);
+                    return;
+                }
                 final boolean profileHeaderException=(from==4
                         && direction==1 && dx<0
                         && downY>decor.getHeight()*.055f
@@ -161,6 +169,22 @@ final class DevOrderedPageSwipe {
         DevFileLog.note("r17 content swipe routed orig="+from
                 +" nativeAfter="+seen+" target="+desired
                 +" handled="+handled);
+    }
+
+    private void restoreSearchEnd(int token) {
+        if(disposed || token!=generation || !scene.attached()
+                || !activity.hasWindowFocus()
+                || scene.mainPill.getVisibility()!=View.VISIBLE) return;
+        if(DevScreenDetector.hiddenBecause(activity,scene.nav,
+                scene.sourceParent)!=null) return;
+        scene.syncSelection();
+        int nativeAfter=scene.nativeSelectedOriginalPage();
+        int seen=nativeAfter>=0?nativeAfter:scene.visualOriginalPage();
+        if(seen==4) {
+            boolean handled=scene.navigateOriginalPage(3,"search-last-page");
+            DevFileLog.note("r17 Search end-of-order guarded native bounce "
+                    +"handled="+handled);
+        }
     }
 
     private static int positionOf(int original) {
