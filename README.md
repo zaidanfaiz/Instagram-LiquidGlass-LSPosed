@@ -2,6 +2,67 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current beta: **0.1-dev-r8 — optically transparent native layer isolation**
+
+Follow-up to r7's real device screenshots and log from 2026-10-21.
+**Navigation works**, including drag-to-select, DM inbox, own profile and
+hiding overlays on someone else's profile. But the visual shell still appears
+**solid white/milky** over both bright posts and Reels even though r7's
+SDF pipeline reports **at most ~5% center opacity** and its glass surface
+paint does not draw a solid background.
+
+### Root-cause mitigation
+
+The Instagram 452 tab row itself is a custom View hierarchy: clearing the
+`View.background` cannot stop an Instagram child View from painting an
+opaque body from its own `onDraw` implementation. Earlier r7 kept the
+original View graphics drawn **above** our transparent material, so its
+opaque selected/updated surfaces could cover the glass again after scrolling.
+
+**r8 deliberately separates native hit targets from native visuals.**
+
+- The genuine five-tab Instagram hierarchy (four buttons in the main pill,
+  the fifth Search split into its own circle) stays attached with original
+  listeners and full touch geometry, but the main native row is given
+  `alpha=0` *visually*.
+- A new **`DevNavGlyphs`** draws four crisp, independent Home / Reels /
+  DM-send / Profile icons above the truly transparent optical shell. It
+  attempts to use the existing native Profile avatar image if obtainable,
+  otherwise uses a generic profile outline. Its dark contour preserves
+  icon readability over bright feeds while keeping a white iOS-style glyph.
+  The glyph view has `clickable=false`, so the original invisible native
+  buttons still receive taps. The slide-to-select parent is unchanged.
+- Search retains its genuine native transparent click target; the
+  independent search magnifier now has a dark outline too.
+- There is NO opaque glass-body color. The SDF center and rim effects remain
+  low-opacity. Original tab `alpha` is saved and restored on rollback /
+  Activity teardown; this build also stops destructive clearing of child
+  backgrounds on every half-second screen poll.
+- Own profile and DM inbox visible; opened DM, other profiles and Story
+  hidden — the r7 routing contract is preserved.
+- Reels can attempt asynchronous SurfaceView PixelCopy; when unavailable
+  it falls back to **genuinely clear material plus optical rim**, not a
+  fabricated solid photo.
+
+This is an experimental step toward the reference concept, **not verified
+pixel-identical iOS Liquid Glass**. Instagram's native tab view may be
+accessibility-sensitive to alpha=0; test click/long-press/accessibility
+and force-stop/disable LSPosed if anything stops working.
+
+### Device test
+
+1. Install the latest successful r8 `Build LSPosed APK` artifact,
+   `app-debug.apk`; scope Instagram only in LSPosed and force-stop Instagram.
+2. Scroll a bright Home post; check **actual underlying post pixels are
+   visible through BOTH glass shells** and not milky white.
+3. Open Reels and scroll through two videos; the top and bottom navigation
+   should not become a white slab. Original video remains responsive.
+4. Tap Home, Reels, the DM button, Profile and separate Search. Drag the
+   active selection across the main capsule. Check avatar/icon legibility.
+5. Confirm own profile + inbox keep the pill, other people's profiles +
+   opened DM conversations + Story hide it. Upload screenshots and
+   `Download/IGGlass-0.1-dev-*.txt` with any deviations.
+
 ## Current experimental build: **0.1-dev-r7 — clear glass on Reels + smart pages**
 
 Target: Instagram 452.0.0.48.64, Android 16, LSPosed.
