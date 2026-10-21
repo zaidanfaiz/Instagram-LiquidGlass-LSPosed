@@ -6,8 +6,8 @@ android {
         applicationId 'dev.zaidan.igglass'
         minSdk 29
         targetSdk 28
-        versionCode 17
-        versionName '0.1-dev-r8-native-layer-isolation'
+        versionCode 18
+        versionName '0.1-dev-r9-true-clear-baseline'
     }
 }
 dependencies {
