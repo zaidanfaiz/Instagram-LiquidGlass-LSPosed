@@ -2,6 +2,64 @@
 
 Experimental module for **Android 16 / Instagram 452.0.0.48.64**. Independent project; not affiliated with Instagram.
 
+## Current diagnostic build: **0.1-dev-r10 — rim-only optical isolation**
+
+The r9 phone screenshots and `IGGlass-0.1-dev-20261021-204619.txt`
+showed a **white / pale-cyan full-width bottom capsule** across Home,
+Reels, Direct inbox and the owner's profile, despite:
+- `r9 CLEAR BASELINE: snapshot/SDF PixelCopy layers disabled`
+- functional native tab click and drag logs, including successful transitions
+  to index 1, 2, 3 and 0
+- the original Instagram bar already hidden visually via `alpha=0`
+
+That rules out the **snapshot/SDF code** as the sole cause of the r9
+opaque surface; it does **not** establish which other child rendered white.
+
+### Stricter visual isolation
+
+- Removed `DevLiquidFx` entirely from the **rendered shell hierarchy**.
+  Even a transparent AGSL shader compiled into a full-rect hardware layer
+  is not allowed to participate in this diagnostic test.
+- Removed the passive full-sized `DevGlassSurface` layer. Both the main
+  capsule and Search circle now contain only a narrow **`DevGlassRim`
+  paint-stroke**, with **no filled background**, no gradient, no passive
+  bitmap, no per-frame sampling and no full-screen or full-pill shimmer.
+- The moving **selected lens** is the only component with a very low-alpha
+  wash. It still slides between original Instagram tab hit targets.
+- Independent icon renderer uses narrow **white single-stroke glyphs**
+  rather than r8/r9's thick black double outlines; native Instagram
+  `ImageView` drawables remain preferred where compatible.
+  Search uses a thin white magnifier outline.
+- Original click targets, detached Search, owner-profile/DM-inbox visibility
+  routing, hidden other-user profile / opened chat / Story rules, and the
+  already-working 180px and guarded 60px bottom-margin fixes are preserved.
+- The Downloads logger now records
+  `r10 STRICT_GLASS: null shell background, rim-only children`
+  and `r10 VISUAL ISOLATION` so a report can be attributed to the build.
+
+**Do not call r10 finished iOS Liquid Glass.** This is an isolation experiment:
+without a captured live backdrop it can show a truly clear base with bright
+reflections and a sliding lens, but cannot reproduce the reference's
+content-aware blur/refraction. If the pill **still turns white** despite
+only stroked rims, the source is likely an Instagram/window layer or another
+unexpected compositing interaction; use fresh diagnostics before another
+shader revision.
+
+### Reproduction
+
+1. Install the successful `0.1-dev-r10-rim-only-isolation` debug APK,
+   force-stop Instagram, reopen with LSPosed scope on Instagram only.
+2. On a bright Home post, swipe Home → Reels → DM inbox → own Profile
+   → Home → Explore. Return and scroll Home 3+ times.
+3. Check BOTH main bar and Search circle. The pixels inside their
+   unselected areas should be **exactly the native Instagram background**
+   visible around them; no milky white rectangle should follow a tab.
+4. Verify native tap, slide-to-select and avatar, profile routing and
+   search. Upload screenshots + `Download/IGGlass-0.1-dev-*.txt`.
+5. If new icon rendering causes accessibility or navigation issues,
+   disable the LSPosed module and force-stop Instagram; no app data reset
+   is required.
+
 ## Current test: **0.1-dev-r9 — true-clear baseline + real native icon drawables**
 
 After the r8 phone screenshot showed **the pill still filling white after a DM /
