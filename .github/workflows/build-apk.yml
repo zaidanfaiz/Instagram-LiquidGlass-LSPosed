@@ -2,7 +2,7 @@ name: Build LSPosed APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, diagnostic/nav-hierarchy]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,6 +35,6 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: Instagram-LiquidGlass-LSPosed-debug
+          name: IG-Navbar-Diagnostic-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
