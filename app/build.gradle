@@ -3,11 +3,11 @@ android {
     namespace 'dev.zaidan.igglass'
     compileSdk 35
     defaultConfig {
-        applicationId 'dev.zaidan.igglass'
+        applicationId 'dev.zaidan.igglass.diagnostic'
         minSdk 29
         targetSdk 28
-        versionCode 6
-        versionName '0.6-clean-navbar-beta'
+        versionCode 1
+        versionName '0.1-diagnostic'
     }
 }
 dependencies {
