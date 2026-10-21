@@ -6,8 +6,8 @@ android {
         applicationId 'dev.zaidan.igglass'
         minSdk 29
         targetSdk 28
-        versionCode 15
-        versionName '0.1-dev-r6-real-sdf-optics'
+        versionCode 16
+        versionName '0.1-dev-r7-clear-reels-smart-pages'
     }
 }
 dependencies {
