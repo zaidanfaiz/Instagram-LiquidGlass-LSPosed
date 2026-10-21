@@ -292,13 +292,24 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (show && !scene.isReelsActive() && activity.hasWindowFocus()
                     && uptime - lastSafeViewportCheck >= 6500) {
                 lastSafeViewportCheck = uptime;
-                if (!DevViewportGuard.hasLiveVideo(scene.host)) {
+                // Reels playback is the dangerous case: NEVER relayout
+                // while its player tab is active. After switching to Home
+                // or DM, however, the old 180px tab reservation MUST be
+                // cleared again even if IG keeps an offscreen/recycled video
+                // SurfaceView in the hierarchy. r13 wrongly treated every
+                // surviving video surface as a playing Reel and skipped this.
+                boolean video = DevViewportGuard.hasLiveVideo(scene.host);
+                if (!video) {
                     if (edgeSpace != null) edgeSpace.setActive(true);
-                    reclaimOriginalNavSpace();
-                    DevViewportGuard.note(activity, scene, "safe-static-tab");
-                } else {
-                    DevFileLog.note("r13 viewport: deferred, visible video surface");
                 }
+                // Only adjust known tab-reservation margins when not on Reels.
+                // Never alter the 60px root coordinator while any video
+                // surface remains visible.
+                reclaimOriginalNavSpace();
+                DevViewportGuard.note(activity, scene,
+                        video ? "post-reels-feed-reservation" : "safe-static-tab");
+                if (video)
+                    DevFileLog.note("r14 viewport: 180px feed reservation repaired; root margin skipped for video");
             }
             if (!state.equals(lastReason)) {
                 if (show && frost != null) frost.request(550);
