@@ -260,21 +260,51 @@ final class DevGlassUi {
         }
 
         int nativeSelectedOriginalPage() {
-            // Prefer actual native selected states over inferred visual state.
-            // Multiple selections (e.g., a nested carousel button) are
-            // ambiguous: signal -1 rather than guessing a page.
+            // The primary native-page signal is the selected tab View.
+            // IG452 sometimes uses a custom-drawn selection with no Android
+            // isSelected flag; in that case safely READ its known pager's
+            // getCurrentItem() through reflection, never modify the adapter.
             int nativePage = -1;
+            boolean ambiguous = false;
             int[] pages = {0,1,2,4};
             for (int i = 0; i < nav.getChildCount() && i < pages.length; i++) {
                 if (!isSelected(nav.getChildAt(i), 0)) continue;
-                if (nativePage >= 0) return -1;
-                nativePage = pages[i];
+                if (nativePage >= 0) ambiguous = true;
+                else nativePage = pages[i];
             }
             if (search != null && isSelected(search,0)) {
-                if (nativePage >= 0) return -1;
-                nativePage = 3;
+                if (nativePage >= 0) ambiguous = true;
+                else nativePage = 3;
             }
-            return nativePage;
+            int pager = nativePagerIndex();
+            if (!ambiguous && nativePage >= 0) {
+                if (pager >= 0 && pager != nativePage) {
+                    DevFileLog.note("r17 native selected/pager differ selected="
+                            +nativePage+" pager="+pager);
+                }
+                return nativePage;
+            }
+            return pager;
+        }
+
+        private int nativePagerIndex() {
+            for(int i=0; i<sourceParent.getChildCount(); i++) {
+                View view=sourceParent.getChildAt(i);
+                if(!"swipeable_tab_view_pager".equals(resourceName(view)))
+                    continue;
+                try {
+                    Object current=de.robv.android.xposed.XposedHelpers
+                            .callMethod(view,"getCurrentItem");
+                    if(current instanceof Integer) {
+                        int selected=(Integer)current;
+                        if(selected>=0 && selected<=4) return selected;
+                    }
+                } catch(Throwable ignored) {
+                    // Not every IG build uses an AndroidX ViewPager.
+                    // When the method is absent, preserve original behavior.
+                }
+            }
+            return -1;
         }
 
         boolean navigateOriginalPage(int originalPage, String reason) {
