@@ -31,6 +31,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
         if (!TARGET.equals(load.packageName)) return;
+        DevNativeMarginGuard.install();
 
         XposedHelpers.findAndHookMethod(Activity.class, "onResume",
                 new XC_MethodHook() {
@@ -109,8 +110,12 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                             DevFileLog.note("native nav tree changed; attempting safe rebind");
                             if (frost != null) frost.stop();
                             frost = null;
-                            if (edgeSpace != null) edgeSpace.restore();
+                            if (edgeSpace != null) {
+                                edgeSpace.unregister();
+                                edgeSpace.restore();
+                            }
                             edgeSpace = null;
+                            DevNativeMarginGuard.clearKnownChildren(scene.sourceParent);
                             scene.removeAndRestore();
                             scene = null;
                             install();
@@ -190,10 +195,12 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 frost = null;
             }
             if (edgeSpace != null) {
+                edgeSpace.unregister();
                 edgeSpace.restore();
                 edgeSpace = null;
             }
             if (scene != null) {
+                DevNativeMarginGuard.clearKnownChildren(scene.sourceParent);
                 scene.removeAndRestore();
                 scene = null;
             }
@@ -335,6 +342,13 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 adjusted = true;
                 DevFileLog.note("old tab_bar_shadow hidden");
             }
+            // Register only the concrete VERIFIED Instagram tab-reservation
+            // holders. Their future setLayoutParams(180px) calls become 0px
+            // BEFORE layout, not a second post-navigation corrective pass.
+            DevNativeMarginGuard.watch(main,scene.barHeight);
+            DevNativeMarginGuard.watch(pager,scene.barHeight);
+            if(validMargin(bottomSearch,scene.barHeight))
+                DevNativeMarginGuard.watch(bottomSearch,scene.barHeight);
             if (adjusted) {
                 parent.requestLayout();
                 DevFileLog.note("fixed reserved bottom margin " + scene.barHeight
