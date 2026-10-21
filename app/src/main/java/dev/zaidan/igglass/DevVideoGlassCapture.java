@@ -60,7 +60,7 @@ final class DevVideoGlassCapture {
         mainImage=addOpticalVideoLayer(activity,scene.mainPill);
         searchImage=scene.searchPill==null ? null
                 : addOpticalVideoLayer(activity,scene.searchPill);
-        DevFileLog.note("r18 video-glass installed: SurfaceView PixelCopy"
+        DevFileLog.note("r19 video-glass installed: SurfaceView + adjacent Window PixelCopy"
                 +" 30% image scale; 2fps MAX; no fullscreen copy");
     }
 
@@ -143,49 +143,59 @@ final class DevVideoGlassCapture {
         }
         SurfaceCandidate source=findVideoSource(scene.host,screenRect);
         SurfaceView surface=source.surface;
-        boolean windowTextureFallback=surface==null && source.texture!=null;
-        if(surface==null&&!windowTextureFallback) {
-            if(!warnedMissing) {
-                DevFileLog.note("r18 video-glass: video SurfaceView / "
-                        +"TextureView not found under capsule; clear rim fallback");
-                warnedMissing=true;
-            }
-            hide(mainImage);hide(searchImage);
-            schedule(1200);
-            return;
-        }
-        warnedMissing=false;
-        Rect sourceRect;
+        Rect sourceRect=null;
+        boolean windowFallback=surface==null;
         if(surface!=null) {
             int[] surfacePos=new int[2];
             surface.getLocationOnScreen(surfacePos);
-            sourceRect=new Rect(screenRect);
-            sourceRect.offset(-surfacePos[0],-surfacePos[1]);
-            // Reels can stop above the Android gesture region. Capture
-            // the intersecting portion and softly extend its edge colors.
-            Rect clipped=new Rect(sourceRect);
-            if(!clipped.intersect(0,0,surface.getWidth(),surface.getHeight())
-                    || clipped.width()<screenRect.width()*.86f
-                    || clipped.height()<screenRect.height()*.52f) {
-                schedule(700);return;
-            }
-            sourceRect=clipped;
-        } else {
-            // A TextureView is already composited into Instagram's window.
-            // Async Window PixelCopy samples a small band, not the display.
-            // Prefer direct SurfaceView whenever available because window
-            // sampling may also pick up small bits of our own glass chrome.
-            int[] decorXY=new int[2];
-            View decor=activity.getWindow().getDecorView();
-            decor.getLocationOnScreen(decorXY);
-            sourceRect=new Rect(screenRect);
-            sourceRect.offset(-decorXY[0],-decorXY[1]);
-            if(sourceRect.left<0||sourceRect.top<0
-                    ||sourceRect.right>decor.getWidth()
-                    ||sourceRect.bottom>decor.getHeight()){
-                schedule(950);return;
+            Rect direct=new Rect(screenRect);
+            direct.offset(-surfacePos[0],-surfacePos[1]);
+            if(direct.intersect(0,0,surface.getWidth(),surface.getHeight())
+                    && direct.width()>=screenRect.width()*.86f
+                    && direct.height()>=screenRect.height()*.52f) {
+                sourceRect=direct;
+            } else {
+                // Reels video may stop above the glass. Fall back to a
+                // neighboring window strip instead of staying fully clear.
+                windowFallback=true;
             }
         }
+        if(windowFallback) {
+            // Instagram 452 may render its video in a native compositor
+            // layer, not a discoverable SurfaceView under scene.host.
+            // Copy a same-size STRIP ABOVE both capsules so it contains the
+            // currently displayed Reel, without copying our own glass/icon
+            // layers (which would feed back into a milky white overlay).
+            int offset=screenRect.height()+
+                    Math.round(13f*activity.getResources()
+                            .getDisplayMetrics().density);
+            Rect above=new Rect(screenRect);
+            above.offset(0,-offset);
+            View decor=activity.getWindow().getDecorView();
+            int[] decorXY=new int[2];
+            decor.getLocationOnScreen(decorXY);
+            above.offset(-decorXY[0],-decorXY[1]);
+            if(above.left<0||above.top<0
+                    ||above.right>decor.getWidth()
+                    ||above.bottom>decor.getHeight()) {
+                if(!warnedMissing) {
+                    warnedMissing=true;
+                    DevFileLog.note("r19 Reels nearby Window strip unavailable"
+                            +" (window coordinates out of bounds)");
+                }
+                schedule(900);
+                return;
+            }
+            sourceRect=above;
+            if(!warnedMissing) {
+                warnedMissing=true;
+                DevFileLog.note("r19 Reels fallback: Window PixelCopy above"
+                        +" glass (no detectable direct video surface)");
+            }
+        } else {
+            warnedMissing=false;
+        }
+        final boolean usedWindowFallback=windowFallback;
         Bitmap destination=null;
         final int frameGeneration=generation;
         try {
@@ -233,9 +243,10 @@ final class DevVideoGlassCapture {
                                 failures=0;
                                 successes++;
                                 apply(image,capturedScreen);
-                                if(successes==1||successes%22==0)
-                                    DevFileLog.note("r18 Reels blur SUCCESS "
-                                            +image.getWidth()+"x"+image.getHeight()
+                                if(successes==1||successes%15==0)
+                                    DevFileLog.note("r19 Reels blur SUCCESS via="
+                                            +(usedWindowFallback?"window-above":"direct-video")
+                                            +" sample="+image.getWidth()+"x"+image.getHeight()
                                             +" frame="+successes);
                             }
                         } finally {
@@ -245,14 +256,9 @@ final class DevVideoGlassCapture {
                             if(enabled)schedule(INTERVAL_MS);
                         }
                     });
-            if(windowTextureFallback) {
+            if(usedWindowFallback) {
                 PixelCopy.request(activity.getWindow(),sourceRect,image,
                         listener,copyHandler);
-                if(successes==0&&!warnedMissing){
-                    warnedMissing=true;
-                    DevFileLog.note("r18 TextureView fallback: async Window "
-                            +"PixelCopy only, no player control");
-                }
             } else {
                 PixelCopy.request(surface,sourceRect,image,listener,copyHandler);
             }
