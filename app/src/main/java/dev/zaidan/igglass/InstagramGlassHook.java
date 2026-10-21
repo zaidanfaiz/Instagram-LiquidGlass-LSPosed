@@ -250,19 +250,19 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // Never toggle it when a Reel comment overlay gains/loses focus.
             if (edgeSpace != null) edgeSpace.setActive(true);
             reclaimOriginalNavSpace();
-            DevFileLog.note("r13 viewport: reserve 180px removed; 60px root guarded; no window/immersive flag overrides");
+            DevFileLog.note("r15 viewport: dynamic 180px feed margin reconciliation + proactive 60px guard; system UI unchanged");
             DevViewportGuard.note(activity, scene, "install");
             // Diagnostic optical baseline: no captured feed/video bitmap may
             // be painted onto the shell. The r7/r8 screenshots stayed white
             // EVEN when native tab rendering was alpha=0. This decisively
             // isolates the high-risk cached AGSL backdrop from the clear
             // material. Re-enable only after actual on-device clear pass.
-            // SAFE non-video frosting only: 16%-opacity cached bitmap,
+            // SAFE non-video frosting: verified cached bitmap,
             // never PixelCopy from Reels, never draw if a Surface/TextureView
             // overlaps the glass. Automatically suspend on modal comments.
             frost = new DevGlassBackdrop(activity, scene);
             frost.start();
-            DevFileLog.note("r12: non-video GPU frosted alpha=16%; Reels kept rim-only");
+            DevFileLog.note("r15: nonvideo GPU optical frost enabled; Reels remains rim-only");
             sync();
         }
 
@@ -308,6 +308,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 lastFragmentLog = now;
                 DevFileLog.note("screen diagnostic " + state
                         + "; fragments=" + DevScreenDetector.fragmentNames(activity));
+                if (show) DevViewportGuard.note(activity, scene, "periodic-static-check");
             }
         }
 
