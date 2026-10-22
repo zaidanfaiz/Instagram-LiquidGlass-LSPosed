@@ -56,10 +56,6 @@ Empat tab utama dalam kapsul kaca melayang, dengan tombol Search terpisah di sis
 **Animasi ilustratif** — tampilan HP dan perpindahan lensa adalah mockup, bukan rekaman hasil pengujian nyata.
 </div>
 
-### Galeri asli
-
-Rekaman asli untuk Home, Reels, DM, Profil, dan Search dapat ditambahkan di `assets/readme/screenshots/`. Lihat [panduan aset](assets/readme/README.md). Screenshot belum dilampirkan sehingga tidak ada klaim visual yang tidak teruji.
-
 ## Kompatibilitas
 
 **Modul ini tidak dikunci ke satu nomor versi Android atau Instagram.** Selama elemen navigasi Instagram kompatibel, modul **berpotensi berjalan di versi lain**. Namun, versi yang belum diuji belum bisa dijamin semuanya berfungsi.
