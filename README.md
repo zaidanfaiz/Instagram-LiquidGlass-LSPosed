@@ -57,10 +57,6 @@ A rounded glass capsule for Home, Reels, DM and Profile, with a separate floatin
 **Illustrative animation** — this moving phone and navigation lens are a design mockup, not captured app footage.
 </div>
 
-### Real screenshots
-
-Actual Home, Reels, DM, Profile and Search captures can be added under `assets/readme/screenshots/`. See the [asset guide](assets/readme/README.md). Real footage is not currently provided; no simulated visuals are presented as tested results.
-
 ## Compatibility
 
 **This module is not locked to one Instagram or Android version.** It hooks the installed `com.instagram.android` application and looks for navigation views. Other versions **may work**, but layout differences can affect fullscreen spacing, blur or gestures.
