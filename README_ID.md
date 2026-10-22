@@ -29,22 +29,9 @@ Modul LSPosed independen — tidak perlu menginstal APK Instagram modifikasi.
 
 Empat tab utama dalam kapsul kaca melayang, dengan tombol Search terpisah di sisi kanan. Navigasinya memakai aplikasi Instagram asli.
 
-<!-- SLOT MEDIA 01 — Setelah file assets/readme/cover.png diunggah, ganti tabel slot di bawah dengan:
-<img src="assets/readme/cover.png" alt="Tampilan utama Instagram Liquid Glass" width="100%">
--->
-<table>
-  <tr>
-    <td align="center">
-      <strong>GAMBAR UTAMA — MASUKKAN SCREENSHOT SENDIRI</strong>
-      <p>Slot untuk cover tampilan proyek</p>
-      <code>assets/readme/cover.png</code>
-      <p><sub>Saran ukuran: 1600 × 900 • PNG/WebP</sub></p>
-    </td>
-  </tr>
-</table>
-
 <div align="center">
-  <sub>Seluruh slot gambar sengaja dibiarkan kosong agar pemilik proyek bisa mengisinya menggunakan screenshot asli.</sub>
+<img src="assets/readme/hero.svg" alt="ZF branded Instagram Liquid Glass concept artwork" width="100%">
+<sub>Mockup desain konseptual, bukan screenshot aplikasi asli.</sub>
 </div>
 
 ### Fitur utama
@@ -63,64 +50,15 @@ Empat tab utama dalam kapsul kaca melayang, dengan tombol Search terpisah di sis
 
 ## Preview & animasi
 
-Tempat GIF dan screenshot ini sudah disediakan. **Belum ada gambar contoh palsu atau gambar Instagram dari sumber lain.**
+<div align="center">
+<img src="assets/readme/tested-application.svg" alt="Animasi HP POCO F7 Ultra dengan branding ZF dan detail lingkungan pengujian" width="95%">
 
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>🎞 Demo navigasi</strong>
-      <p>Rekaman GIF perpindahan Home, Reels, DM, Profil, dan Search</p>
-      <code>assets/readme/navigation-demo.gif</code>
-      <p><sub>Rekomendasi: 900 × 500 • GIF</sub></p>
-    </td>
-    <td width="50%" align="center">
-      <strong>🎞 Demo kaca Reels</strong>
-      <p>Rekaman GIF blur pada video Reels yang bergerak</p>
-      <code>assets/readme/reels-blur.gif</code>
-      <p><sub>Rekomendasi: 900 × 500 • GIF</sub></p>
-    </td>
-  </tr>
-</table>
+**Animasi ilustratif** — tampilan HP dan perpindahan lensa adalah mockup, bukan rekaman hasil pengujian nyata.
+</div>
 
-<!-- SLOT MEDIA 02 — Setelah mengunggah GIF sendiri, ganti tabel slot di atas dengan:
-<table>
-  <tr>
-    <td align="center"><img src="assets/readme/navigation-demo.gif" alt="Animasi swipe navbar kaca" width="100%"></td>
-    <td align="center"><img src="assets/readme/reels-blur.gif" alt="Animasi blur kaca pada Reels" width="100%"></td>
-  </tr>
-</table>
--->
+### Galeri asli
 
-### Galeri screenshot
-
-<table>
-  <tr>
-    <td align="center"><strong>Home</strong><p>📷 Slot gambar</p><code>home.png</code></td>
-    <td align="center"><strong>Reels</strong><p>📷 Slot gambar</p><code>reels.png</code></td>
-    <td align="center"><strong>DM</strong><p>📷 Slot gambar</p><code>dm.png</code></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Profil</strong><p>📷 Slot gambar</p><code>profile.png</code></td>
-    <td align="center"><strong>Search</strong><p>📷 Slot gambar</p><code>search.png</code></td>
-    <td align="center"><strong>Perangkat uji</strong><p>POCO F7 Ultra</p><sub>Screenshot asli</sub></td>
-  </tr>
-</table>
-
-<!-- SLOT MEDIA 03 — Unggah gambar ke assets/readme/screenshots/ lalu ganti tabel slot di atas dengan:
-<table>
-  <tr>
-    <td align="center"><img src="assets/readme/screenshots/home.png" alt="Navbar di Home" width="100%"><br><strong>Home</strong></td>
-    <td align="center"><img src="assets/readme/screenshots/reels.png" alt="Efek kaca di Reels" width="100%"><br><strong>Reels</strong></td>
-    <td align="center"><img src="assets/readme/screenshots/dm.png" alt="Navbar di DM" width="100%"><br><strong>DM</strong></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="assets/readme/screenshots/profile.png" alt="Navbar di profil" width="100%"><br><strong>Profil</strong></td>
-    <td align="center"><img src="assets/readme/screenshots/search.png" alt="Tombol Search terpisah" width="100%"><br><strong>Search</strong></td>
-  </tr>
-</table>
--->
-
-Panduan mengganti slot gambar dan GIF ada di **[assets/readme/README.md](assets/readme/README.md)**. Slot akan tetap kosong sampai lu mengunggah media sendiri.
+Rekaman asli untuk Home, Reels, DM, Profil, dan Search dapat ditambahkan di `assets/readme/screenshots/`. Lihat [panduan aset](assets/readme/README.md). Screenshot belum dilampirkan sehingga tidak ada klaim visual yang tidak teruji.
 
 ## Kompatibilitas
 
@@ -135,6 +73,11 @@ Panduan mengganti slot gambar dan GIF ada di **[assets/readme/README.md](assets/
 | **Versi lain** | Boleh dicoba; kompatibilitas belum seluruhnya diverifikasi |
 
 ### Perangkat pengujian pengembang
+
+<img src="assets/readme/tested-application.svg" alt="Animated branded test device illustration" width="100%">
+
+**Catatan:** Informasi perangkat di bawah adalah catatan pengujian; ilustrasi di atas bukan bukti pengujian visual.
+
 
 | Informasi | Konfigurasi |
 | :--- | :--- |
