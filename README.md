@@ -30,22 +30,9 @@ An independent LSPosed module — no modified Instagram APK required.
 
 A rounded glass capsule for Home, Reels, DM and Profile, with a separate floating Search control. Instagram's original app and tab actions stay in place.
 
-<!-- MEDIA SLOT 01 — Replace the placeholder below after uploading your own assets/readme/cover.png.
-<img src="assets/readme/cover.png" alt="Instagram Liquid Glass floating navigation preview" width="100%">
--->
-<table>
-  <tr>
-    <td align="center">
-      <strong>HERO IMAGE — YOUR SCREENSHOT GOES HERE</strong>
-      <p>Reserved for the main product cover / visual</p>
-      <code>assets/readme/cover.png</code>
-      <p><sub>Recommended: 1600 × 900 • PNG/WebP</sub></p>
-    </td>
-  </tr>
-</table>
-
 <div align="center">
-  <sub>All preview slots are intentionally empty so the maintainer can add original device screenshots and recordings.</sub>
+<img src="assets/readme/hero.svg" alt="ZF branded Instagram Liquid Glass concept artwork" width="100%">
+<sub>Concept artwork — not an actual application screenshot.</sub>
 </div>
 
 ### Highlights
@@ -64,64 +51,15 @@ A rounded glass capsule for Home, Reels, DM and Profile, with a separate floatin
 
 ## Live preview
 
-The layout is ready for original media captured on the test device. **No mockups or borrowed Instagram screenshots are included.**
+<div align="center">
+<img src="assets/readme/tested-application.svg" alt="Animated POCO F7 Ultra phone concept with ZF branding and tested environment" width="95%">
 
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>🎞 Navigation gesture demo</strong>
-      <p>Animated GIF / recorded swipe between the five destinations</p>
-      <code>assets/readme/navigation-demo.gif</code>
-      <p><sub>Suggested: 900 × 500 • GIF</sub></p>
-    </td>
-    <td width="50%" align="center">
-      <strong>🎞 Reels glass blur demo</strong>
-      <p>Animated GIF / moving video visible through the glass</p>
-      <code>assets/readme/reels-blur.gif</code>
-      <p><sub>Suggested: 900 × 500 • GIF</sub></p>
-    </td>
-  </tr>
-</table>
+**Illustrative animation** — this moving phone and navigation lens are a design mockup, not captured app footage.
+</div>
 
-<!-- MEDIA SLOT 02 — After uploading your own GIFs, replace the placeholder table above with:
-<table>
-  <tr>
-    <td align="center"><img src="assets/readme/navigation-demo.gif" alt="Glass navbar navigation demo" width="100%"></td>
-    <td align="center"><img src="assets/readme/reels-blur.gif" alt="Reels frosted blur demo" width="100%"></td>
-  </tr>
-</table>
--->
+### Real screenshots
 
-### Screenshots
-
-<table>
-  <tr>
-    <td align="center"><strong>Home</strong><p>📷 Screenshot slot</p><code>home.png</code></td>
-    <td align="center"><strong>Reels</strong><p>📷 Screenshot slot</p><code>reels.png</code></td>
-    <td align="center"><strong>Direct</strong><p>📷 Screenshot slot</p><code>dm.png</code></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Profile</strong><p>📷 Screenshot slot</p><code>profile.png</code></td>
-    <td align="center"><strong>Search</strong><p>📷 Screenshot slot</p><code>search.png</code></td>
-    <td align="center"><strong>Device</strong><p>POCO F7 Ultra</p><sub>Original captures only</sub></td>
-  </tr>
-</table>
-
-<!-- MEDIA SLOT 03 — Upload images to assets/readme/screenshots/ and replace the placeholders above with:
-<table>
-  <tr>
-    <td align="center"><img src="assets/readme/screenshots/home.png" alt="Instagram Home glass navbar" width="100%"><br><strong>Home</strong></td>
-    <td align="center"><img src="assets/readme/screenshots/reels.png" alt="Reels video glass effect" width="100%"><br><strong>Reels</strong></td>
-    <td align="center"><img src="assets/readme/screenshots/dm.png" alt="Direct inbox glass navbar" width="100%"><br><strong>DM</strong></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="assets/readme/screenshots/profile.png" alt="Own profile glass navbar" width="100%"><br><strong>Profile</strong></td>
-    <td align="center"><img src="assets/readme/screenshots/search.png" alt="Separate Search glass button" width="100%"><br><strong>Search</strong></td>
-  </tr>
-</table>
--->
-
-**Adding your media?** See the simple [preview asset guide](assets/readme/README.md). The still-image and GIF slots stay empty until you upload your own screenshots and recordings.
+Actual Home, Reels, DM, Profile and Search captures can be added under `assets/readme/screenshots/`. See the [asset guide](assets/readme/README.md). Real footage is not currently provided; no simulated visuals are presented as tested results.
 
 ## Compatibility
 
@@ -136,6 +74,11 @@ The layout is ready for original media captured on the test device. **No mockups
 | **Other app/OS builds** | Welcome to test; not all configurations have been verified |
 
 ### Verified development test device
+
+<img src="assets/readme/tested-application.svg" alt="Animated branded test device illustration" width="100%">
+
+**Note:** The table below records the development setup; the illustration above is not visual test evidence.
+
 
 | Item | Test configuration |
 | :--- | :--- |
