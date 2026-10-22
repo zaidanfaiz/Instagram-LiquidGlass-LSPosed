@@ -1,0 +1,29 @@
+name: Verify README image import
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/import-readme-images.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      SOURCE_IMAGE_URL: "https://media.canva.com/v2/image-resize/format:PNG/height:112/quality:100/uri:ifs%3A%2F%2FM%2F11869bad-7022-415f-b0a4-64213ec8aabb/watermark:F/width:200?csig=AAAAAAAAAAAAAAAAAAAAAMWHfg5pdwl-ELk7kZfXS9Sv5M4ZPn_LhaxfTqaB_TVj&exp=1792653566&osig=AAAAAAAAAAAAAAAAAAAAAODUAe4s_SVaLnnnqLbYcHh0pXm2viFugeCLElsqoe60&signer=media-rpc&token=AAIAAU0AJDExODY5YmFkLTcwMjItNDE1Zi1iMGE0LTY0MjEzZWM4YWFiYgAAAAABoWJ6oDDEGW37WVNgp-z-npohTRPqiFWZA4BlwafYV3CGlXb9kw&x-canva-quality=thumbnail"
+    steps:
+      - name: Test original and full-resolution URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,subprocess
+          url=os.environ["SOURCE_IMAGE_URL"]
+          full=url.replace('/height:112/','/height:941/').replace('/width:200?', '/width:1672?')
+          for label,target in [('thumb',url),('full',full)]:
+              p=subprocess.run(['curl','-sS','-L','--max-time','25','-o',f'/tmp/{label}.png','-w','%{http_code}',target],capture_output=True,text=True)
+              print(label,'HTTP',p.stdout,'bytes',os.path.getsize(f'/tmp/{label}.png') if os.path.exists(f'/tmp/{label}.png') else 0)
+              if os.path.exists(f'/tmp/{label}.png'):
+                  subprocess.run(['file',f'/tmp/{label}.png'],check=True)
+          PY
