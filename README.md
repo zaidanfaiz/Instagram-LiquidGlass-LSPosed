@@ -11,12 +11,12 @@ An independent LSPosed module — no modified Instagram APK required.
 
 
 [![Build](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions/workflows/build-apk.yml/badge.svg)](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions/workflows/build-apk.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.0--beta.1-F5A623?style=flat)](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1)
+[![Release](https://img.shields.io/badge/release-v0.1.0--beta.2-F5A623?style=flat)](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.2)
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![LSPosed](https://img.shields.io/badge/Framework-LSPosed-5865F2)
 ![License](https://img.shields.io/badge/license-source--available-64748B)
 
-**[Download](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1) · [Preview](#live-preview) · [Installation](#installation) · [Compatibility](#compatibility) · [Report a bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)**
+**[Download](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.2) · [Preview](#live-preview) · [Installation](#installation) · [Compatibility](#compatibility) · [Report a bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)**
 
 **English** · [Bahasa Indonesia](README_ID.md)
 
@@ -40,6 +40,7 @@ A rounded glass capsule for Home, Reels, DM and Profile, with a separate floatin
 | Experience | What it does |
 | :--- | :--- |
 | **Floating Liquid-Glass-inspired UI** | Rounded transparent capsules, reflective edges, animated selected lens and background blur |
+| **Expanded glass accents (beta.2)** | Translucent rims on identified search fields, inbox filters, profile actions, composer surfaces and select toolbar controls; unrecognized UI stays native |
 | **Frosted Reels** | Experimental video-aware blur via limited asynchronous Android `PixelCopy` sampling |
 | **Five destinations** | Home, Reels, Direct inbox, your profile and a standalone Search button |
 | **Swipe navigation** | Glass-bar gestures plus best-effort remapping of Instagram's native horizontal page swipes |
@@ -56,6 +57,8 @@ A rounded glass capsule for Home, Reels, DM and Profile, with a separate floatin
 
 **Illustrative animation** — this moving phone and navigation lens are a design mockup, not captured app footage.
 </div>
+
+> **Beta.2:** the extra accents are draw-only and do not apply real-time backdrop blur. Coverage depends on Instagram resource IDs and layout; media/player views are deliberately excluded.
 
 ## Compatibility
 
@@ -89,7 +92,7 @@ This table describes the device used in development and user testing, **not a re
 
 ## Installation
 
-1. Open **[GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1)** and download the **module APK**. A `SHA256SUMS.txt` file is included for checksum verification.
+1. Open **[GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.2)** and download the **module APK**. A `SHA256SUMS.txt` file is included for checksum verification.
 2. Install it on your device with LSPosed.
 3. In **LSPosed → Modules**, enable **Instagram Liquid Glass** and select **Instagram (`com.instagram.android`)** as its scope.
 4. **Force-stop Instagram**, then reopen it.
