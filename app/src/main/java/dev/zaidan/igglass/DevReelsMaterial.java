@@ -65,6 +65,8 @@ final class DevReelsMaterial {
     private Bitmap sampleBitmap;
     private Rect sampleScreen;
     private SurfaceView preferredSurface;
+    private DevReelsRailFallback rail;
+    private View railHost;
     private boolean enabled;
     private boolean destroyed;
     private boolean pending;
@@ -104,6 +106,14 @@ final class DevReelsMaterial {
             lastDetect = SystemClock.uptimeMillis();
             detect(scene);
         }
+        // Instagram 452 draws some Reels buttons outside normal clickable
+        // View geometry. Use an optical, no-touch fallback where needed.
+        if (rail == null || railHost != scene.host) {
+            if (rail != null) rail.clear();
+            rail = new DevReelsRailFallback(activity, scene.host);
+            railHost = scene.host;
+        }
+        rail.sync(scene, controls.size() < 3);
         if (!copySuspended && !pending && !controls.isEmpty()
                 && SystemClock.uptimeMillis() - lastSample >= SAMPLE_MS) {
             sample();
@@ -111,6 +121,7 @@ final class DevReelsMaterial {
     }
 
     void suspend() {
+        if (rail != null) rail.clear();
         if (!enabled) return;
         enabled = false;
         generation++;
@@ -122,6 +133,8 @@ final class DevReelsMaterial {
     void stop() {
         if (destroyed) return;
         suspend();
+        rail = null;
+        railHost = null;
         destroyed = true;
         if (worker != null) {
             worker.quitSafely();
