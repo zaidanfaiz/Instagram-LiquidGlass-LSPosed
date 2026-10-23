@@ -25,7 +25,7 @@ import java.util.Locale;
  *
  * Never recreates, replaces, clicks, hooks or modifies Instagram buttons.
  * The optical layer has NO touch handlers. Prefer actual on-screen counter
- * label geometry. A four-control normalized fallback is restricted to the
+ * label geometry. A screenshot-calibrated five-action fallback is restricted to the
  * developer's documented screen size AND exact tested Instagram version.
  * Unknown devices/builds are left unmodified.
  *
@@ -103,12 +103,23 @@ final class DevReelsRailFallback {
             // Screen coordinates calibrated ONLY from owner-supplied 1440x3200
             // Instagram 452 Reels screenshot. DO NOT apply on other builds.
             int x = Math.round(host.getWidth() * .923f);
-            for (float y : new float[]{.574f,.654f,.736f,.813f,.886f}) {
+            for (float y : new float[]{.493f,.575f,.655f,.734f,.807f}) {
                 addIfClear(targets,x,Math.round(host.getHeight()*y),radius,scene);
             }
-            mode = "device-calibrated";
+            mode = "device-calibrated-aligned";
         }
 
+        int railCount = targets.size();
+        // If a real labelled Follow control is exposed, add a separately
+        // measured pill. Never infer a Follow position from the screenshot:
+        // it moves with captions and author overlays.
+        RectF follow = findFollow(host, new int[]{BUDGET}, 0);
+        int followPills = 0;
+        if (follow != null && !overlaps(follow,scene.mainPill)
+                && !overlaps(follow,scene.searchPill)) {
+            targets.add(follow);
+            followPills = 1;
+        }
         material.setTargets(targets);
         if (targets.size() != lastCount || !mode.equals(lastMode)
                 || now-previousLog > 9000L) {
@@ -116,9 +127,50 @@ final class DevReelsRailFallback {
             lastMode = mode;
             previousLog = now;
             DevFileLog.note("beta3.2 reels rail fallback mode="+mode
-                    +" counters="+selected.size()+" circles="+targets.size()
+                    +" counters="+selected.size()+" circles="+railCount+" followPills="+followPills
                     +" collision-checked=true");
         }
+    }
+
+    private RectF findFollow(View view, int[] remaining, int depth) {
+        if (view == null || remaining[0]-- <= 0 || depth > 21
+                || view == material || !view.isShown()) return null;
+        if (view instanceof TextView) {
+            CharSequence value = ((TextView)view).getText();
+            if (value != null && value.length() < 20) {
+                String label = value.toString().trim().toLowerCase(Locale.ROOT);
+                if (label.equals("ikuti") || label.equals("follow")
+                        || label.equals("mengikuti") || label.equals("following")) {
+                    Rect r = new Rect();
+                    if (view.getGlobalVisibleRect(r)) {
+                        int[] offset = new int[2];
+                        host.getLocationOnScreen(offset);
+                        r.offset(-offset[0], -offset[1]);
+                        if (r.centerY() > host.getHeight()*.62f
+                                && r.centerY() < host.getHeight()*.88f
+                                && r.centerX() > host.getWidth()*.18f
+                                && r.centerX() < host.getWidth()*.82f) {
+                            RectF glass = new RectF(r);
+                            glass.inset(-dp(12),-dp(7));
+                            if (glass.width() >= dp(50)
+                                    && glass.width() < dp(185)
+                                    && glass.height() >= dp(28)
+                                    && glass.height() < dp(85))
+                                return glass;
+                        }
+                    }
+                }
+            }
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup)view;
+            int count = Math.min(g.getChildCount(),90);
+            for (int i=0;i<count && remaining[0]>0;i++) {
+                RectF found=findFollow(g.getChildAt(i),remaining,depth+1);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private boolean documentedBuild() {
