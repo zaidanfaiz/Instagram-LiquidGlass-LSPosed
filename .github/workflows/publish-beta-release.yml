@@ -1,6 +1,6 @@
-name: Publish v0.1.0-beta.1
+name: Publish v0.1.0-beta.2
 
-# Creating this workflow in main triggers ONE release preparation.
+# Merge this workflow into main to trigger ONE guarded beta.2 release build.
 # Manual reruns deliberately fail once the tag exists to avoid silently
 # replacing APKs with a differently signed debug build.
 on:
@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: instagram-liquid-glass-beta-1
+  group: instagram-liquid-glass-beta-2
   cancel-in-progress: false
 
 jobs:
@@ -24,9 +24,9 @@ jobs:
     timeout-minutes: 35
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: v0.1.0-beta.1
+      RELEASE_TAG: v0.1.0-beta.2
     steps:
-      - name: Check out tagged source
+      - name: Check out release candidate source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -48,16 +48,19 @@ jobs:
           # URL when it becomes draft; /releases/tags/TAG may then return
           # 404. The stable REST numeric release ID is reliable instead.
           research_id=419376513
-          draft="$(gh api "/repos/$GITHUB_REPOSITORY/releases/$research_id" --jq '.draft')"
-          if [[ "$draft" != "true" ]]; then
-            gh release edit instagram-452-analysis --draft -R "$GITHUB_REPOSITORY"
+          if gh api "/repos/$GITHUB_REPOSITORY/releases/$research_id" >/dev/null 2>&1; then
             draft="$(gh api "/repos/$GITHUB_REPOSITORY/releases/$research_id" --jq '.draft')"
+            if [[ "$draft" != "true" ]]; then
+              gh api -X PATCH "/repos/$GITHUB_REPOSITORY/releases/$research_id" -f draft=true >/dev/null
+              draft="$(gh api "/repos/$GITHUB_REPOSITORY/releases/$research_id" --jq '.draft')"
+            fi
+            if [[ "$draft" != "true" ]]; then
+              echo "::error::Proprietary APK research release is not draft."
+              exit 1
+            fi
+          else
+            echo "Research release was removed; continuing."
           fi
-          if [[ "$draft" != "true" ]]; then
-            echo "::error::Third-party APK research release must be draft."
-            exit 1
-          fi
-          echo "Verified existing research release ID $research_id is a private draft."
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -90,7 +93,7 @@ jobs:
       - name: Compile the exact release source
         run: |
           set -euo pipefail
-          grep -F "versionName '0.1.0-beta.1'" app/build.gradle
+          grep -F "versionName '0.1.0-beta.2'" app/build.gradle
           gradle --no-daemon :app:assembleDebug
 
       - name: Verify signed APK and create SHA-256 checksum
@@ -98,14 +101,29 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk \
-             dist/Instagram-LiquidGlass-v0.1.0-beta.1.apk
+             dist/Instagram-LiquidGlass-v0.1.0-beta.2.apk
           APKSIGNER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" \
             -name apksigner -type f | sort | tail -n 1)"
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose \
-            dist/Instagram-LiquidGlass-v0.1.0-beta.1.apk
-          (cd dist && sha256sum Instagram-LiquidGlass-v0.1.0-beta.1.apk > SHA256SUMS.txt)
+            dist/Instagram-LiquidGlass-v0.1.0-beta.2.apk
+          (cd dist && sha256sum Instagram-LiquidGlass-v0.1.0-beta.2.apk > SHA256SUMS.txt)
           cat dist/SHA256SUMS.txt
+          cat > dist/RELEASE_NOTES.beta2.md <<'BETA2_NOTES'
+          ## Instagram Liquid Glass v0.1.0-beta.2
+
+          **Beta update — expanded glass styling across selected Instagram controls.**
+
+          - Glass rim and soft tint for recognized search fields, inbox filter chips, profile action buttons, reply/composer containers and selected toolbar actions.
+          - Existing floating Home / Reels / DM / Profile navigation and separate Search capsule retained.
+          - Conservative drawing via Android ViewOverlay: no view hierarchy replacement, no new touch interception and no Reels player modifications.
+          - The new surfaces are translucent visual accents, not true iOS backdrop refraction or guaranteed real-time blur.
+          - Actual coverage depends on Instagram resource names and layout. Unknown controls are deliberately skipped.
+
+          **Test configuration:** POCO F7 Ultra, Android 16, Instagram 452.0.0.48.64 (previous development environment); beta.2 has not been independently validated on-device. Other builds may behave differently.
+
+          Install the APK, enable the module for Instagram in LSPosed, then force-stop and reopen Instagram. Updates are manual; a changed debug signing key may require reinstalling **the module only**.
+          BETA2_NOTES
 
       - name: Publish prerelease (repository stays PRIVATE)
         run: |
@@ -114,9 +132,9 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --prerelease \
-            --title "Instagram Liquid Glass v0.1.0-beta.1" \
-            --notes-file RELEASE_NOTES.md \
-            dist/Instagram-LiquidGlass-v0.1.0-beta.1.apk \
+            --title "Instagram Liquid Glass v0.1.0-beta.2" \
+            --notes-file dist/RELEASE_NOTES.beta2.md \
+            dist/Instagram-LiquidGlass-v0.1.0-beta.2.apk \
             dist/SHA256SUMS.txt
 
       - name: Verify release contents
