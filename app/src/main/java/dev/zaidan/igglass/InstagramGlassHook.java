@@ -91,6 +91,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         private final Activity activity;
         private final View decor;
         private final DevChromeGlass chrome;
+        private final DevReelsMaterial reelsMaterial;
         private DevGlassUi.Scene scene;
         private DevEdgeSpaceFix.Session edgeSpace;
         private DevGlassBackdrop frost;
@@ -131,6 +132,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                             scene.removeAndRestore();
                             scene = null;
                             chrome.clear();
+                            reelsMaterial.suspend();
                             install();
                         }
                         sync();
@@ -150,6 +152,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             this.activity = activity;
             this.decor = activity.getWindow().getDecorView();
             this.chrome = new DevChromeGlass(activity, decor);
+            this.reelsMaterial = new DevReelsMaterial(activity, decor);
         }
 
         void onResume() {
@@ -169,6 +172,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         void onPause() {
             resumed = false;
             chrome.clear();
+            reelsMaterial.suspend();
             if (frost != null) frost.setEnabled(false);
             if (videoGlass != null) videoGlass.setEnabled(false);
             if (scene != null) scene.show(false);
@@ -227,6 +231,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             running = false;
             resumed = false;
             chrome.clear();
+            reelsMaterial.stop();
             decor.removeCallbacks(poll);
             if (frost != null) {
                 frost.stop();
@@ -319,7 +324,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (show) scene.syncSelection();
             // beta.2: only view-overlay chrome decoration; no Instagram layout,
             // player or touch handler mutation. Throttled independently.
-            chrome.sync(scene, show);
+            if (scene.isReelsActive()) chrome.clear();
+            else chrome.sync(scene, show);
+            reelsMaterial.sync(scene, show);
             // Native tab selection can change during syncSelection.
             if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
             if (videoGlass != null) videoGlass.setEnabled(show && scene.isReelsActive());
