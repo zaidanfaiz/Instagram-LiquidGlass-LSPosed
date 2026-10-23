@@ -54,11 +54,11 @@ final class DevGlassSurface extends View {
         radius = h / 2f;
         if (selectedLens) {
             tint.setShader(new LinearGradient(0f, 0f, w, h,
-                    new int[] {0x32D3DFEA, 0x1DBECEDD, 0x28E1E8F0},
+                    new int[] {0x64F1F9FF, 0x43C8DAEB, 0x58FAFDFF},
                     new float[] {0f, .46f, 1f}, Shader.TileMode.CLAMP));
         } else {
             tint.setShader(new LinearGradient(0f, 0f, w, h,
-                    new int[] {0x00CFD9E3, 0x00ABBCCD, 0x00DCE5ED},
+                    new int[] {0x3D101925, 0x27121C2C, 0x4C1D2938},
                     new float[] {0f, .51f, 1f}, Shader.TileMode.CLAMP));
         }
         edge.setShader(new LinearGradient(0, 0, w, h,
@@ -76,8 +76,8 @@ final class DevGlassSurface extends View {
         specular.setShader(new RadialGradient(w * .24f, h * -.07f,
                 Math.max(w * .53f, h),
                 selectedLens
-                    ? new int[] {0x68FFFFFF, 0x14FFFFFF, 0x00FFFFFF}
-                    : new int[] {0x29F5FAFF, 0x09F4FAFF, 0x00FFFFFF},
+                    ? new int[] {0x94FFFFFF, 0x24FFFFFF, 0x00FFFFFF}
+                    : new int[] {0x42F5FAFF, 0x0DF4FAFF, 0x00FFFFFF},
                 new float[] {0f, .42f, 1f}, Shader.TileMode.CLAMP));
         lowerShade.setShader(new LinearGradient(0, 0, 0, h,
                 new int[] {0x00B5D8EE, 0x00B5D8EE, 0x42798FA1},
@@ -95,13 +95,11 @@ final class DevGlassSurface extends View {
         float bottom = h - inset;
         float r = Math.max(1, radius - inset);
 
-        // No shell background, no cached image and NO broad fill.
-        // Only the SELECTED lens has a faint, clear gray wash, so it is
-        // visible when dragged. The main pill remains fully pass-through.
-        if (selectedLens) {
-            canvas.drawRoundRect(left, top, right, bottom, r, r, tint);
-            canvas.drawRoundRect(left, top, right, bottom, r, r, specular);
-        }
+        // Dark translucent optical material beneath actual navigation icons.
+        // Use modest alpha to retain the sampled moving background instead
+        // of covering content with an opaque white/black rectangle.
+        canvas.drawRoundRect(left, top, right, bottom, r, r, tint);
+        canvas.drawRoundRect(left, top, right, bottom, r, r, specular);
         // Thin metallic perimeter plus internal refraction-like second line.
         canvas.drawRoundRect(left, top, right, bottom, r, r, edge);
         float inner = inset + dp(1.65f);
