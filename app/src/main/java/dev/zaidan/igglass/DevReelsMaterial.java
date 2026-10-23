@@ -59,8 +59,7 @@ final class DevReelsMaterial {
     private final int screenHeight;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Map<View, Material> controls = new HashMap<>();
-    private final Runnable tick = this::sample;
-
+    
     private HandlerThread worker;
     private Handler background;
     private Bitmap sampleBitmap;
@@ -104,9 +103,6 @@ final class DevReelsMaterial {
             lastDetect = SystemClock.uptimeMillis();
             detect(scene);
         }
-        for (Map.Entry<View, Material> entry : controls.entrySet()) {
-            entry.getValue().setActive(isActive(entry.getKey()));
-        }
         if (!copySuspended && !pending && !controls.isEmpty()
                 && SystemClock.uptimeMillis() - lastSample >= SAMPLE_MS) {
             sample();
@@ -118,7 +114,6 @@ final class DevReelsMaterial {
         enabled = false;
         generation++;
         pending = false;
-        main.removeCallbacks(tick);
         preferredSurface = null;
         clearControls();
     }
@@ -184,7 +179,7 @@ final class DevReelsMaterial {
                     found.add(target);
                     Material drawable = controls.get(target);
                     if (drawable == null) {
-                        drawable = new Material(density);
+                        drawable = new Material(target, density);
                         controls.put(target, drawable);
                         target.getOverlay().add(drawable);
                     }
@@ -437,6 +432,7 @@ final class DevReelsMaterial {
 
     private static final class Material extends Drawable {
         private final float density;
+        private final View host;
         private final Paint backdrop = new Paint(Paint.ANTI_ALIAS_FLAG
                 | Paint.FILTER_BITMAP_FLAG);
         private final Paint shade = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -451,7 +447,8 @@ final class DevReelsMaterial {
         private int oldW = -1, oldH = -1;
         private boolean oldActive;
 
-        Material(float density) {
+        Material(View host, float density) {
+            this.host = host;
             this.density = density;
             outer.setStyle(Paint.Style.STROKE);
             outer.setStrokeWidth(Math.max(1f,density * 1.05f));
@@ -497,9 +494,8 @@ final class DevReelsMaterial {
             canvas.save();
             canvas.clipPath(clip);
             if (frame != null && !frame.isRecycled() && captureArea != null
-                    && getCallback() instanceof View) {
-                View view = (View)getCallback();
-                Rect real = screenRect(view);
+                    && captureArea.width() > 0 && captureArea.height() > 0) {
+                Rect real = screenRect(host);
                 int left = Math.max(0,Math.round((real.left-captureArea.left)
                         * frame.getWidth()/(float)captureArea.width()));
                 int top = Math.max(0,Math.round((real.top-captureArea.top)
