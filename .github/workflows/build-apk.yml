@@ -2,7 +2,7 @@ name: Build LSPosed APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/beta2-glass-chrome]
 jobs:
   build:
     runs-on: ubuntu-latest
