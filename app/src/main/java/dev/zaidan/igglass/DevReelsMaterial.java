@@ -201,17 +201,15 @@ final class DevReelsMaterial {
         View chosen = source;
         View candidate = source;
         for (int i = 0; i < 3; i++) {
-            if (candidate.isClickable() && withinSize(candidate, action)) {
-                chosen = candidate;
-                break;
-            }
             ViewParent parent = candidate.getParent();
             if (!(parent instanceof View)) break;
             View upper = (View) parent;
             if (!withinSize(upper, action) || upper.getVisibility() != View.VISIBLE)
                 break;
+            // Prefer the original hitbox over a tiny image icon.
+            if (upper.isClickable() || (chosen.getWidth() < dp(36)
+                    && upper.getWidth() >= dp(38))) chosen = upper;
             candidate = upper;
-            chosen = upper;
         }
         return withinSize(chosen, action) ? chosen : null;
     }
