@@ -90,6 +90,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
     private static final class Controller {
         private final Activity activity;
         private final View decor;
+        private final DevChromeGlass chrome;
         private DevGlassUi.Scene scene;
         private DevEdgeSpaceFix.Session edgeSpace;
         private DevGlassBackdrop frost;
@@ -129,6 +130,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                             DevNativeMarginGuard.clearKnownChildren(scene.sourceParent);
                             scene.removeAndRestore();
                             scene = null;
+                            chrome.clear();
                             install();
                         }
                         sync();
@@ -147,6 +149,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         Controller(Activity activity) {
             this.activity = activity;
             this.decor = activity.getWindow().getDecorView();
+            this.chrome = new DevChromeGlass(activity, decor);
         }
 
         void onResume() {
@@ -165,6 +168,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
 
         void onPause() {
             resumed = false;
+            chrome.clear();
             if (frost != null) frost.setEnabled(false);
             if (videoGlass != null) videoGlass.setEnabled(false);
             if (scene != null) scene.show(false);
@@ -222,6 +226,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (!running) return;
             running = false;
             resumed = false;
+            chrome.clear();
             decor.removeCallbacks(poll);
             if (frost != null) {
                 frost.stop();
@@ -312,6 +317,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             // live video coordinator, which can freeze SurfaceView pictures
             // after dismissing the comments sheet. Installer owns insets.
             if (show) scene.syncSelection();
+            // beta.2: only view-overlay chrome decoration; no Instagram layout,
+            // player or touch handler mutation. Throttled independently.
+            chrome.sync(scene, show);
             // Native tab selection can change during syncSelection.
             if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
             if (videoGlass != null) videoGlass.setEnabled(show && scene.isReelsActive());

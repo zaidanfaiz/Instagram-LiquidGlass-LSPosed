@@ -1,3 +1,11 @@
+## v0.1.0-beta.2 — Glass chrome expansion (candidate)
+
+- Add lightweight glass accents to named Instagram UI controls: search bars, inbox filters, profile action buttons, composer surfaces and selected header actions.
+- Keep existing floating glass navigation and Reels backdrop behavior unchanged.
+- Use bounded, throttled view traversal and draw-only ViewOverlay accents; no input interception, player changes, background replacement or content capture.
+- Skip unidentified/obfuscated controls, feed media, full-screen views and unsupported layouts. Android/Instagram builds beyond the recorded development configuration are not verified.
+- Provide cleanup on pause, Activity destroy and navigation reinflation.
+
 # Changelog
 
 Changes in this project are recorded here. Beta releases may contain breaking changes because Instagram's internal UI is not a stable public API.

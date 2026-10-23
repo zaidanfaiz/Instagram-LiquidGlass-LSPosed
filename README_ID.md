@@ -11,11 +11,11 @@ Modul LSPosed independen — tidak perlu menginstal APK Instagram modifikasi.
 
 
 [![Build](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions/workflows/build-apk.yml/badge.svg)](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/actions/workflows/build-apk.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.0--beta.1-F5A623)](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1)
+[![Release](https://img.shields.io/badge/release-v0.1.0--beta.2-F5A623)](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.2)
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Framework](https://img.shields.io/badge/framework-LSPosed-5865F2)
 
-**[Unduh APK](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1) · [Preview](#preview--animasi) · [Cara instal](#instalasi) · [Kompatibilitas](#kompatibilitas) · [Lapor bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)**
+**[Unduh APK](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.2) · [Preview](#preview--animasi) · [Cara instal](#instalasi) · [Kompatibilitas](#kompatibilitas) · [Lapor bug](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/issues/new/choose)**
 
 [English](README.md) · **Bahasa Indonesia**
 
@@ -39,6 +39,7 @@ Empat tab utama dalam kapsul kaca melayang, dengan tombol Search terpisah di sis
 | Fitur | Penjelasan |
 | :--- | :--- |
 | **Floating glass navbar** | Kapsul transparan dengan blur, tepi reflektif, dan animasi lensa aktif |
+| **Glass UI lebih luas (beta.2)** | Aksen kaca transparan di kontrol yang dikenali: kotak pencarian, filter inbox, tombol profil, composer, dan tombol header tertentu; elemen tanpa ID yang cocok tetap dibiarkan asli |
 | **Blur pada Reels** | Sampling video terbatas memakai Android `PixelCopy` secara asinkron |
 | **Lima tujuan** | Home, Reels, inbox DM, profil sendiri, dan Search di lingkaran terpisah |
 | **Navigasi geser** | Geser lensa pada navbar; perpindahan lewat swipe isi halaman menggunakan remapping terbatas |
@@ -55,6 +56,8 @@ Empat tab utama dalam kapsul kaca melayang, dengan tombol Search terpisah di sis
 
 **Animasi ilustratif** — tampilan HP dan perpindahan lensa adalah mockup, bukan rekaman hasil pengujian nyata.
 </div>
+
+> **Beta.2:** aksen visual tambahan tidak memakai blur latar real-time. Cakupan bergantung pada struktur/ID tampilan Instagram, dan tidak semua elemen bisa dihias tanpa merusak fungsi aplikasi.
 
 ## Kompatibilitas
 
@@ -88,7 +91,7 @@ Data tersebut adalah **lingkungan pengujian**, bukan batasan pemasangan untuk pe
 
 ## Instalasi
 
-1. Buka **[GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.1)** dan unduh **APK modul**. Tersedia juga `SHA256SUMS.txt` untuk verifikasi checksum.
+1. Buka **[GitHub Releases](https://github.com/zaidanfaiz/Instagram-LiquidGlass-LSPosed/releases/tag/v0.1.0-beta.2)** dan unduh **APK modul**. Tersedia juga `SHA256SUMS.txt` untuk verifikasi checksum.
 2. Instal APK modul pada HP yang sudah menggunakan LSPosed.
 3. Buka **LSPosed → Modules**, aktifkan **Instagram Liquid Glass**, lalu pilih scope **Instagram (`com.instagram.android`)**.
 4. **Paksa berhenti (force-stop) Instagram**, lalu buka kembali.
