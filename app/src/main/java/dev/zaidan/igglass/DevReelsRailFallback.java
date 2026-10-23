@@ -259,7 +259,7 @@ final class DevReelsRailFallback {
 
     private int dp(float n) { return Math.round(n*density); }
 
-    private static final class RailMaterial extends View {
+    static final class RailMaterial extends View {
         private final Paint shade = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint inside = new Paint(Paint.ANTI_ALIAS_FLAG);
