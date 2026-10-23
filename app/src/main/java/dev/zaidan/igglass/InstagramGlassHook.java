@@ -92,6 +92,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         private final View decor;
         private final DevChromeGlass chrome;
         private final DevReelsMaterial reelsMaterial;
+        private DevFeedActionsFallback feedMaterial;
         private DevGlassUi.Scene scene;
         private DevEdgeSpaceFix.Session edgeSpace;
         private DevGlassBackdrop frost;
@@ -133,6 +134,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                             scene = null;
                             chrome.clear();
                             reelsMaterial.suspend();
+                            if (feedMaterial != null) feedMaterial.clear();
                             install();
                         }
                         sync();
@@ -173,6 +175,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             resumed = false;
             chrome.clear();
             reelsMaterial.suspend();
+            if (feedMaterial != null) feedMaterial.clear();
             if (frost != null) frost.setEnabled(false);
             if (videoGlass != null) videoGlass.setEnabled(false);
             if (scene != null) scene.show(false);
@@ -232,6 +235,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             resumed = false;
             chrome.clear();
             reelsMaterial.stop();
+            if (feedMaterial != null) {
+                feedMaterial.clear();
+                feedMaterial = null;
+            }
             decor.removeCallbacks(poll);
             if (frost != null) {
                 frost.stop();
@@ -281,6 +288,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (!isDescendant(parent, host)) return;
             scene = DevGlassUi.create(activity, host, parent, nav);
             if (scene == null) return;
+            feedMaterial = new DevFeedActionsFallback(activity, host);
             orderedPageSwipe = new DevOrderedPageSwipe(activity,scene);
             edgeSpace = DevEdgeSpaceFix.inspect(activity, parent);
             // Apply the verified root correction ONCE at installation.
@@ -327,6 +335,8 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (scene.isReelsActive()) chrome.clear();
             else chrome.sync(scene, show);
             reelsMaterial.sync(scene, show);
+            if (feedMaterial != null)
+                feedMaterial.sync(scene, show && scene.visualOriginalPage() == 0);
             // Native tab selection can change during syncSelection.
             if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
             if (videoGlass != null) videoGlass.setEnabled(show && scene.isReelsActive());
