@@ -46,10 +46,10 @@ import java.util.Map;
  * preserve the original icons; this is not system-level iOS refraction.
  */
 final class DevReelsMaterial {
-    private static final long DETECT_MS = 1550L;
+    private static final long DETECT_MS = 1700L;
     private static final long SAMPLE_MS = 950L;
-    private static final int MAX_NODES = 760;
-    private static final int MAX_DEPTH = 19;
+    private static final int MAX_NODES = 2000;
+    private static final int MAX_DEPTH = 23;
     private static final int MAX_BUTTONS = 12;
     private static final float SCALE = .28f;
     private final Activity activity;
@@ -72,6 +72,7 @@ final class DevReelsMaterial {
     private int generation;
     private int errors;
     private long lastDetect;
+    private long lastDetectionLog;
     private long lastSample;
 
     DevReelsMaterial(Activity activity, View root) {
@@ -142,7 +143,24 @@ final class DevReelsMaterial {
     private void detect(DevGlassUi.Scene scene) {
         HashSet<View> found = new HashSet<>();
         try {
-            scan(root, scene, 0, new int[]{MAX_NODES}, found);
+            int[] budget = {MAX_NODES};
+            HashSet<View> unlabelled = new HashSet<>();
+            scan(root, scene, 0, budget, found, unlabelled);
+            int labelCount = found.size();
+            // Obfuscated Instagram builds may have NO action resource names.
+            // Only accept fallback if a right-side aligned vertical cluster of
+            // >=3 native CLICKABLE views is visible. No clicks are synthesized.
+            if (found.size() < 3)
+                attachVerticalRail(unlabelled, found);
+            long now = SystemClock.uptimeMillis();
+            if (now - lastDetectionLog > 6500L) {
+                lastDetectionLog = now;
+                DevFileLog.note("beta3 controls scan visited="
+                        + (MAX_NODES - budget[0]) + " labelled=" + labelCount
+                        + " candidates=" + unlabelled.size()
+                        + " attached=" + found.size()
+                        + " geometric=" + Math.max(0,found.size()-labelCount));
+            }
             Iterator<Map.Entry<View, Material>> it = controls.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<View, Material> entry = it.next();
@@ -160,7 +178,7 @@ final class DevReelsMaterial {
     }
 
     private void scan(View view, DevGlassUi.Scene scene, int depth,
-                      int[] budget, HashSet<View> found) {
+                      int[] budget, HashSet<View> found, HashSet<View> unlabelled) {
         if (view == null || depth > MAX_DEPTH || budget[0]-- <= 0
                 || view.getVisibility() != View.VISIBLE
                 || view.getAlpha() < .50f) return;
@@ -169,32 +187,98 @@ final class DevReelsMaterial {
         if (!view.isShown()) return;
         if (view instanceof SurfaceView || view instanceof TextureView) return;
         String className = view.getClass().getName().toLowerCase(Locale.ROOT);
-        if (className.contains("player") || className.contains("videoview")
-                || className.contains("recycler")) return;
+        // Do NOT prune RecyclerView/player CONTAINERS: in Instagram 452 the
+        // real native action buttons often live BELOW one of these groups.
+        // Exclude video surfaces themselves, but inspect their UI siblings.
         if (found.size() < MAX_BUTTONS) {
             String action = actionOf(view);
             if (action != null) {
                 View target = bestTouchTarget(view, action);
-                if (target != null && allowedPosition(target, action)) {
-                    found.add(target);
-                    Material drawable = controls.get(target);
-                    if (drawable == null) {
-                        drawable = new Material(target, density);
-                        controls.put(target, drawable);
-                        target.getOverlay().add(drawable);
-                    }
-                    drawable.setBounds(0, 0, target.getWidth(), target.getHeight());
-                    drawable.setActive(isActive(target) || isActive(view));
-                    drawable.setFrame(sampleBitmap, sampleScreen);
-                }
+                if (target != null && allowedPosition(target, action))
+                    attach(target, view, found);
+            } else if (view.isClickable()
+                    && withinSize(view, "like")
+                    && inReelsRail(view) && unlabelled.size() < 36) {
+                unlabelled.add(view);
             }
         }
         if (!(view instanceof ViewGroup)) return;
         ViewGroup parent = (ViewGroup) view;
         int count = Math.min(parent.getChildCount(), 85);
         for (int i = 0; i < count && budget[0] > 0; i++) {
-            scan(parent.getChildAt(i), scene, depth + 1, budget, found);
+            scan(parent.getChildAt(i), scene, depth + 1, budget, found, unlabelled);
         }
+    }
+
+    private void attach(View target, View source, HashSet<View> found) {
+        if (!found.add(target)) return;
+        Material drawable = controls.get(target);
+        if (drawable == null) {
+            drawable = new Material(target, density);
+            controls.put(target, drawable);
+            target.getOverlay().add(drawable);
+        }
+        drawable.setBounds(0, 0, target.getWidth(), target.getHeight());
+        drawable.setActive(isActive(target) || isActive(source));
+        drawable.setFrame(sampleBitmap, sampleScreen);
+    }
+
+    private boolean inReelsRail(View v) {
+        if (!v.isShown() || v.getWindowToken() == null) return false;
+        Rect rect = screenRect(v);
+        if (rect.centerX() < screenWidth * .75f
+                || rect.top < screenHeight * .27f
+                || rect.bottom > screenHeight * .89f)
+            return false;
+        Rect visible = new Rect();
+        return v.getGlobalVisibleRect(visible)
+                && visible.width() >= rect.width() * .85f
+                && visible.height() >= rect.height() * .85f;
+    }
+
+    private void attachVerticalRail(HashSet<View> candidates,
+                                    HashSet<View> found) {
+        // Three distinct tap hitboxes at a shared x-axis distinguish a
+        // Reels action rail from a random corner control. Avoid nested views
+        // by requiring separate vertical rows.
+        View pivot = null;
+        int strongest = 0;
+        for (View anchor : candidates) {
+            Rect a = screenRect(anchor);
+            int count = 0;
+            for (View v : candidates) {
+                Rect b = screenRect(v);
+                if (Math.abs(b.centerX() - a.centerX()) <= dp(27)
+                        && Math.abs(b.centerY() - a.centerY()) > dp(28))
+                    count++;
+            }
+            if (count > strongest) {
+                pivot = anchor;
+                strongest = count;
+            }
+        }
+        if (pivot == null || strongest < 2) return;
+        final int middleX = screenRect(pivot).centerX();
+        java.util.ArrayList<View> column = new java.util.ArrayList<>();
+        for (View view : candidates) {
+            if (Math.abs(screenRect(view).centerX() - middleX) <= dp(27))
+                column.add(view);
+        }
+        java.util.Collections.sort(column,
+                (a,b) -> Integer.compare(screenRect(a).centerY(),
+                                         screenRect(b).centerY()));
+        int lastY = -99999;
+        java.util.ArrayList<View> selected = new java.util.ArrayList<>();
+        for (View view : column) {
+            int centerY = screenRect(view).centerY();
+            if (centerY - lastY < dp(32)) continue;
+            selected.add(view);
+            lastY = centerY;
+            if (selected.size() >= MAX_BUTTONS) break;
+        }
+        if (selected.size() < 3) return;
+        for (View button : selected)
+            attach(button, button, found);
     }
 
     private View bestTouchTarget(View source, String action) {
@@ -258,11 +342,11 @@ final class DevReelsMaterial {
         if (buttonId && has(id,"save", "bookmark")) return "save";
         if (buttonId && has(id,"follow")) return "follow";
         if (buttonId && has(id,"more", "overflow")) return "more";
-        if (matches(desc,"like","unlike","suka","batal suka",
-                "liked","hapus suka")) return "like";
-        if (matches(desc,"comment","comments","komentar")) return "comment";
-        if (matches(desc,"share","bagikan","kirim ke")) return "share";
-        if (matches(desc,"save","unsave","saved","simpan",
+        if (matches(desc,"like","unlike","suka","sukai","menyukai",
+                "liked","batal suka","hapus suka")) return "like";
+        if (matches(desc,"comment","comments","komentar","beri komentar","tulis komentar")) return "comment";
+        if (matches(desc,"share","bagikan","kirim ke","repost","kirim")) return "share";
+        if (matches(desc,"save","unsave","saved","simpan","bookmark",
                 "tersimpan","batalkan simpan")) return "save";
         if (matches(desc,"follow","following","ikuti",
                 "mengikuti","diikuti","unfollow")) return "follow";
