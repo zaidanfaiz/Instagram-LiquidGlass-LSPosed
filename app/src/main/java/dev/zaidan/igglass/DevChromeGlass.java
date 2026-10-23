@@ -6,6 +6,7 @@ import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
@@ -45,6 +46,7 @@ final class DevChromeGlass {
     private final int screenHeight;
     private final float density;
     private long lastRefresh;
+    private long lastStatsLog;
     private boolean disabled;
 
     DevChromeGlass(Activity activity, View root) {
@@ -68,6 +70,14 @@ final class DevChromeGlass {
         int[] budget = {MAX_VISITED, MAX_DECORATED};
         try {
             visit(root, 0, scene, seen, budget, mainTabVisible);
+            if (now - lastStatsLog >= 7000L) {
+                lastStatsLog = now;
+                int feedCount = 0;
+                for (View v : seen) if (isFeedAction(v)) feedCount++;
+                DevFileLog.note("beta3.1 chrome surfaces=" + seen.size()
+                        + " feedActions=" + feedCount
+                        + " visitedBudget=" + budget[0]);
+            }
             Iterator<Map.Entry<View, GlassAccent>> iterator = active.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<View, GlassAccent> entry = iterator.next();
@@ -139,9 +149,9 @@ final class DevChromeGlass {
 
     private int classify(View view, String className, int w, int h,
                          boolean mainTabVisible) {
-        final int min = dp(27), max = dp(108);
+        final int min = dp(20), max = dp(108);
         // Leave large panels, scroll/media surfaces and full-width Reels overlays alone.
-        if (h < min || h > max || w < dp(34)
+        if (h < min || h > max || w < dp(22)
                 || w > screenWidth * .98f || h > screenHeight * .11f)
             return 0;
         if (className.contains("recycler") || className.contains("viewpager")
@@ -192,7 +202,7 @@ final class DevChromeGlass {
     }
 
     private boolean isFeedAction(View view) {
-        if (view.getWidth() > dp(110)
+        if (view.getWidth() > dp(175)
                 || view.getHeight() > dp(100)
                 || view.getHeight() < dp(22)) return false;
         Rect screen = new Rect();
