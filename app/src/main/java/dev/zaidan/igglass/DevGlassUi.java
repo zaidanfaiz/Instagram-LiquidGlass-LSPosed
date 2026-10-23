@@ -576,7 +576,7 @@ final class DevGlassUi {
         // Instagram's dark/light settings and the current post/video colors.
         // 'dark' remains for legacy backdrop capture fill only.
         boolean dark = true;
-        DevFileLog.note("glass material=NEUTRAL_CLEAR; no theme switching");
+        DevFileLog.note("beta3.1 glass material=NEUTRAL_SMOKED; no theme switching");
 
         // Single native navigation instance: detach once, preserve all listeners.
         DevGesturePill main = new DevGesturePill(activity);
@@ -704,7 +704,7 @@ final class DevGlassUi {
             }
             DevFileLog.note("r14 touch shields armed: Reels speed long-press intercepted on DOWN");
             main.post(() -> scene.positionLens(false));
-            DevFileLog.note("r10 VISUAL ISOLATION: pure transparent shell, only active lens tint");
+            DevFileLog.note("beta3.1 NAV GLASS: full translucent shell material + rim + lens");
             main.post(() -> {
                 DevFileLog.note("pill geometry mainX=" + main.getLeft()
                         + " mainW=" + main.getWidth()
@@ -773,13 +773,14 @@ final class DevGlassUi {
             }
         });
         shell.setClipToOutline(true);
-        // R10 strict transparent baseline: the only permanent shell drawing
-        // is a 1dp optical perimeter. There is no full-surface child, no AGSL
-        // ripple, no blur bitmap, no gradient and no filled round rectangle.
-        // Thus anything opaque after this change is outside our glass paint.
+        // Beta3.1: a readable translucent dark optical layer plus strong bevel.
+        // The sampler's ImageView is inserted behind these non-interactive
+        // materials; real Instagram icons and touch shields stay above them.
+        DevGlassSurface material = new DevGlassSurface(activity, false);
+        shell.addView(material, new FrameLayout.LayoutParams(-1, -1));
         DevGlassRim rim = new DevGlassRim(activity, true);
         shell.addView(rim, new FrameLayout.LayoutParams(-1, -1));
-        DevFileLog.note("r10 STRICT_GLASS: null shell background, rim-only children");
+        DevFileLog.note("beta3.1 optical material: translucent fill + rim + lens");
     }
 
     private static View createLens(Activity activity, boolean dark) {

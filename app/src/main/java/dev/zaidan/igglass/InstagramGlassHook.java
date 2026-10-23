@@ -90,11 +90,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
     private static final class Controller {
         private final Activity activity;
         private final View decor;
-        private final DevChromeGlass chrome;
+        private final DevNativeActionProbe nativeProbe;
         private DevGlassUi.Scene scene;
         private DevEdgeSpaceFix.Session edgeSpace;
-        private DevGlassBackdrop frost;
-        private DevVideoGlassCapture videoGlass;
         private DevOrderedPageSwipe orderedPageSwipe;
         private boolean running;
         private boolean resumed;
@@ -114,10 +112,6 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                         if (scene == null) install();
                         else if (!scene.attached()) {
                             DevFileLog.note("native nav tree changed; attempting safe rebind");
-                            if (frost != null) frost.stop();
-                            frost = null;
-                            if (videoGlass != null) videoGlass.stop();
-                            videoGlass = null;
                             if (orderedPageSwipe != null) {
                                 orderedPageSwipe.stop();
                                 orderedPageSwipe = null;
@@ -130,7 +124,6 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                             DevNativeMarginGuard.clearKnownChildren(scene.sourceParent);
                             scene.removeAndRestore();
                             scene = null;
-                            chrome.clear();
                             install();
                         }
                         sync();
@@ -149,7 +142,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
         Controller(Activity activity) {
             this.activity = activity;
             this.decor = activity.getWindow().getDecorView();
-            this.chrome = new DevChromeGlass(activity, decor);
+            this.nativeProbe = new DevNativeActionProbe(activity, decor);
         }
 
         void onResume() {
@@ -163,14 +156,10 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             decor.postDelayed(this::installIfNeeded, 1000);
             decor.postDelayed(this::installIfNeeded, 2200);
             decor.postDelayed(this::sync, 280);
-            if (frost != null) frost.request(680);
         }
 
         void onPause() {
             resumed = false;
-            chrome.clear();
-            if (frost != null) frost.setEnabled(false);
-            if (videoGlass != null) videoGlass.setEnabled(false);
             if (scene != null) scene.show(false);
             // Do NOT restore the 60px root margin here. Opening a modal
             // comment sheet, another Window or an input UI can briefly pause
@@ -193,8 +182,6 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (DevScreenDetector.hiddenBecause(activity, scene.nav,
                     scene.sourceParent) != null) {
                 scene.show(false);
-                if (frost != null) frost.setEnabled(false);
-                if (videoGlass != null) videoGlass.setEnabled(false);
                 decor.postDelayed(this::sync, 240);
                 return;
             }
@@ -206,11 +193,6 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 return;
             }
             scene.onTouch(ev);
-            if (frost != null) {
-                frost.setEnabled(!scene.isReelsActive()
-                        && scene.mainPill.getVisibility()==View.VISIBLE);
-                frost.request(1000);
-            }
             decor.postDelayed(this::sync, 240);
         }
 
@@ -226,16 +208,7 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             if (!running) return;
             running = false;
             resumed = false;
-            chrome.clear();
             decor.removeCallbacks(poll);
-            if (frost != null) {
-                frost.stop();
-                frost = null;
-            }
-            if (videoGlass != null) {
-                videoGlass.stop();
-                videoGlass = null;
-            }
             if (orderedPageSwipe != null) {
                 orderedPageSwipe.stop();
                 orderedPageSwipe = null;
@@ -284,21 +257,9 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             reclaimOriginalNavSpace();
             DevFileLog.note("r15 viewport: dynamic 180px feed margin reconciliation + proactive 60px guard; system UI unchanged");
             DevViewportGuard.note(activity, scene, "install");
-            // Diagnostic optical baseline: no captured feed/video bitmap may
-            // be painted onto the shell. The r7/r8 screenshots stayed white
-            // EVEN when native tab rendering was alpha=0. This decisively
-            // isolates the high-risk cached AGSL backdrop from the clear
-            // material. Re-enable only after actual on-device clear pass.
-            // SAFE non-video frosting: verified cached bitmap,
-            // never PixelCopy from Reels, never draw if a Surface/TextureView
-            // overlaps the glass. Automatically suspend on modal comments.
-            frost = new DevGlassBackdrop(activity, scene);
-            frost.start();
-            // Experimental async SurfaceView sampling for Reels. Separate
-            // material layer, NEVER a player hook or a layout modification.
-            videoGlass = new DevVideoGlassCapture(activity, scene);
-            DevFileLog.note("r18: Home static frost + Reels PixelCopy frost;"
-                    + " own-profile/DM/search retained; fallback fully clear");
+            // No static feed backdrop captures or live-video copies.
+            DevFileLog.note("beta3 native-only: action overlays and"
+                    + " static/video blur samplers disabled");
             sync();
         }
 
@@ -308,22 +269,13 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
             String state = reason == null ? "visible" : "hidden:" + reason;
             boolean show = reason == null;
             scene.show(show);
-            // Two independent capture pipelines: static Home/DM/Explore vs
-            // async Reels SurfaceView. Neither is active in comments/chat.
-            if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
-            if (videoGlass != null) videoGlass.setEnabled(show && scene.isReelsActive());
             // Neither setActive(show) nor margin reclamation may run in
             // periodic sync: it forces repeated setLayoutParams() on the
             // live video coordinator, which can freeze SurfaceView pictures
             // after dismissing the comments sheet. Installer owns insets.
             if (show) scene.syncSelection();
-            // beta.2: only view-overlay chrome decoration; no Instagram layout,
-            // player or touch handler mutation. Throttled independently.
-            chrome.sync(scene, show);
-            // Native tab selection can change during syncSelection.
-            if (frost != null) frost.setEnabled(show && !scene.isReelsActive());
-            if (videoGlass != null) videoGlass.setEnabled(show && scene.isReelsActive());
-
+            // Passive hierarchy discovery only; no action icon layers.
+            nativeProbe.inspect(scene, show);
             // IG452 may restore an old 180px reservation without invoking
             // setLayoutParams on the previously watched instances. The r14
             // intercept successfully catches 60px but the uploaded log
@@ -338,7 +290,6 @@ public final class InstagramGlassHook implements IXposedHookLoadPackage {
                 reclaimOriginalNavSpace();
             }
             if (!state.equals(lastReason)) {
-                if (show && frost != null) frost.request(550);
                 lastReason = state;
                 scene.auditMaterial(state);
                 DevViewportGuard.note(activity, scene, "route-" + state);

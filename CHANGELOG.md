@@ -1,3 +1,12 @@
+## v0.1.0-beta.3 — Native-only correction (development candidate)
+
+- Removed the screenshot-coordinate-based Reels action circles and inferred Home-feed controls. Those were **extra visual overlays**, not changes to Instagram's original buttons.
+- Disabled static screenshot frosting and Reels PixelCopy background sampling to avoid unintended blur, smeared text and extra GPU work.
+- Preserved the separate existing bottom navigation glass material, original navigation targets, gestures and root viewport corrections.
+- Added **passive native View hierarchy diagnostics** for Like, Comment, Repost, Share and Save. These diagnostics log only View classes, resource IDs, sizes and clickable flags—no accounts, captions or media.
+- **No native Reels action-button styling is claimed yet.** The last device log showed zero individually detected native controls; the exact renderer must be identified before a safe in-place background/drawable patch can be made.
+- This candidate needs real-device testing and must not be released as a complete Reels Liquid Glass upgrade.
+
 ## v0.1.0-beta.2 — Glass chrome expansion (candidate)
 
 - Add lightweight glass accents to named Instagram UI controls: search bars, inbox filters, profile action buttons, composer surfaces and selected header actions.
